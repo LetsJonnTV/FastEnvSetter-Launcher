@@ -35,6 +35,33 @@ public interface ISecretProtector
     string? Unprotect(string protectedText);
 }
 
+public sealed class SecretProviderException(string message) : Exception(message);
+
+/// <summary>Ein Tresor als Quelle für geheime Variablen. Neue Anbieter werden nur per DI registriert.</summary>
+public interface ISecretProvider
+{
+    string Id { get; }
+    string DisplayName { get; }
+    string ReferenceHint { get; }
+    bool SupportsLogin { get; }
+    bool UsesServerUrl { get; }
+
+    Task<string> GetStatusAsync(CancellationToken token = default);
+    Task LoginAsync(string email, string password, string code, CancellationToken token = default);
+
+    /// <exception cref="SecretProviderException">Mit einer Meldung für die Oberfläche.</exception>
+    Task<string> ResolveAsync(string reference, CancellationToken token = default);
+}
+
+/// <summary>Ein Eintrag der Befehlspalette.</summary>
+public sealed record PaletteCommand(string Title, string Subtitle, string Icon, Func<Task> Execute);
+
+/// <summary>Module steuern hierüber Befehle zur Palette bei.</summary>
+public interface ICommandSource
+{
+    IEnumerable<PaletteCommand> GetCommands();
+}
+
 public interface IAppDataStore
 {
     AppData Data { get; }
@@ -56,6 +83,8 @@ public enum ServiceState
     Running,
     Stopping,
     Failed,
+    Waiting,
+    Blocked,
 }
 
 public enum LogKind
@@ -65,7 +94,7 @@ public enum LogKind
     System,
 }
 
-public sealed record LogEntry(long Sequence, DateTime Timestamp, LogKind Kind, string Text);
+public sealed record LogEntry(long Sequence, DateTime Timestamp, LogKind Kind, string Text, IReadOnlyList<LogSpan>? Spans = null);
 
 public sealed record ServiceStateChange(Guid ProjectId, Guid ServiceId, ServiceState State, string? Message);
 
@@ -73,6 +102,14 @@ public sealed record StartResult(IReadOnlyList<string> Errors)
 {
     public static readonly StartResult Ok = new([]);
     public bool Success => Errors.Count == 0;
+}
+
+public sealed record PortOwner(int Port, int ProcessId, string ProcessName);
+
+public interface IPortInspector
+{
+    /// <returns>Der Prozess, der auf dem Port lauscht, oder null, wenn er frei ist.</returns>
+    PortOwner? FindOwner(int port);
 }
 
 public interface IProcessSupervisor
@@ -86,8 +123,8 @@ public interface IProcessSupervisor
     IReadOnlyList<LogEntry> GetLogSince(Guid serviceId, long afterSequence);
     void ClearLog(Guid serviceId);
 
-    Task<StartResult> StartProjectAsync(Project project, EnvProfile? profile, CancellationToken cancellationToken = default);
-    Task<StartResult> StartServiceAsync(Project project, ServiceDefinition service, EnvProfile? profile);
+    Task<StartResult> StartProjectAsync(Project project, IReadOnlyList<EnvProfile> profiles, CancellationToken cancellationToken = default);
+    Task<StartResult> StartServiceAsync(Project project, ServiceDefinition service, IReadOnlyList<EnvProfile> profiles);
     Task StopServiceAsync(Guid serviceId);
     Task StopProjectAsync(Project project);
     Task StopAllAsync();

@@ -59,9 +59,9 @@ public static class EnvResolver
         return rows;
     }
 
-    public static ResolvedEnvironment Resolve(Project project, ServiceDefinition? service, IReadOnlyList<EnvProfile> allProfiles)
+    /// <summary>Die Variablen, die für einen Dienst tatsächlich gelten.</summary>
+    public static IReadOnlyDictionary<string, EnvVariable> Winners(Project project, ServiceDefinition? service, IReadOnlyList<EnvProfile> allProfiles, ICollection<string>? errors = null)
     {
-        var errors = new List<string>();
         var winners = new Dictionary<string, EnvVariable>(StringComparer.OrdinalIgnoreCase);
         var disabled = new HashSet<Guid>(project.DisabledVariableIds);
         if (service is not null)
@@ -72,22 +72,7 @@ public static class EnvResolver
         if (service is not null)
             Apply(service.ExtraVariables);
 
-        var variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        var secrets = new List<string>();
-        foreach (var (name, variable) in winners)
-        {
-            if (variable.IsSecret && variable.DecryptionFailed)
-            {
-                errors.Add($"„{name}“ lässt sich nicht entschlüsseln. Bitte den Wert neu eingeben.");
-                continue;
-            }
-
-            variables[name] = variable.Value;
-            if (variable.IsSecret && variable.Value.Length > 0)
-                secrets.Add(variable.Value);
-        }
-
-        return new ResolvedEnvironment(variables, secrets, errors);
+        return winners;
 
         void Apply(IEnumerable<EnvVariable> layerVariables)
         {
@@ -96,14 +81,47 @@ public static class EnvResolver
             {
                 var name = variable.Name.Trim();
                 if (name.Length == 0)
-                    errors.Add("Eine angehakte Variable hat keinen Namen.");
+                    errors?.Add("Eine angehakte Variable hat keinen Namen.");
                 else if (name.Contains('=') || name.Contains('\0'))
-                    errors.Add($"Der Variablenname „{name}“ ist ungültig: „=“ ist nicht erlaubt.");
+                    errors?.Add($"Der Variablenname „{name}“ ist ungültig: „=“ ist nicht erlaubt.");
                 else if (!seen.Add(name))
-                    errors.Add($"Die Variable „{name}“ ist mehrfach angehakt.");
+                    errors?.Add($"Die Variable „{name}“ ist mehrfach angehakt.");
                 else
                     winners[name] = variable;
             }
         }
+    }
+
+    public static ResolvedEnvironment Resolve(
+        Project project, ServiceDefinition? service, IReadOnlyList<EnvProfile> allProfiles, IReadOnlyDictionary<Guid, string>? vaultValues = null)
+    {
+        var errors = new List<string>();
+        var winners = Winners(project, service, allProfiles, errors);
+        var variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var secrets = new List<string>();
+
+        foreach (var (name, variable) in winners)
+        {
+            var value = variable.Value;
+            if (variable.SecretRef is not null)
+            {
+                if (vaultValues is null || !vaultValues.TryGetValue(variable.Id, out value!))
+                {
+                    errors.Add($"„{name}“ wurde nicht aus dem Tresor geholt.");
+                    continue;
+                }
+            }
+            else if (variable.IsSecret && variable.DecryptionFailed)
+            {
+                errors.Add($"„{name}“ lässt sich nicht entschlüsseln. Bitte den Wert neu eingeben.");
+                continue;
+            }
+
+            variables[name] = value;
+            if ((variable.IsSecret || variable.SecretRef is not null) && value.Length > 0)
+                secrets.Add(value);
+        }
+
+        return new ResolvedEnvironment(variables, secrets, errors);
     }
 }

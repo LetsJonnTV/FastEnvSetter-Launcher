@@ -29,6 +29,7 @@ public abstract class RunnerBase : IRunner
     public virtual DetectionResult Detect(string folder) => DetectionResult.Empty;
     public virtual bool RequiresTerminal(ServiceDefinition service) => false;
     public virtual ProcessCommand? BuildStop(ServiceDefinition service) => null;
+    public virtual IReadOnlyList<int> GetExpectedPorts(ServiceDefinition service) => [];
 
     public virtual IReadOnlyList<string> Validate(ServiceDefinition service)
     {

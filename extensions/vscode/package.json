@@ -1,0 +1,91 @@
+{
+  "name": "fastenvsetter",
+  "displayName": "FastEnvSetter",
+  "description": "Projekte mit vorausgewählten Umgebungsvariablen direkt aus VS Code starten.",
+  "version": "1.0.0",
+  "publisher": "letsjonntv",
+  "license": "MIT",
+  "icon": "media/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/LetsJonnTV/FastEnvSetter-Launcher.git",
+    "directory": "extensions/vscode"
+  },
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      { "command": "fastenvsetter.quickStart", "title": "Projekt starten", "category": "FastEnvSetter" },
+      { "command": "fastenvsetter.quickStop", "title": "Projekt stoppen", "category": "FastEnvSetter" },
+      { "command": "fastenvsetter.open", "title": "Launcher öffnen", "category": "FastEnvSetter" },
+      { "command": "fastenvsetter.refresh", "title": "Aktualisieren", "category": "FastEnvSetter", "icon": "$(refresh)" },
+      { "command": "fastenvsetter.start", "title": "Starten", "category": "FastEnvSetter", "icon": "$(play)" },
+      { "command": "fastenvsetter.stop", "title": "Stoppen", "category": "FastEnvSetter", "icon": "$(debug-stop)" },
+      { "command": "fastenvsetter.restart", "title": "Neu starten", "category": "FastEnvSetter", "icon": "$(debug-restart)" },
+      { "command": "fastenvsetter.logs", "title": "Logs anzeigen", "category": "FastEnvSetter", "icon": "$(output)" }
+    ],
+    "views": {
+      "explorer": [
+        { "id": "fastenvsetter.projects", "name": "FastEnvSetter" }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        { "command": "fastenvsetter.refresh", "when": "view == fastenvsetter.projects", "group": "navigation" }
+      ],
+      "view/item/context": [
+        { "command": "fastenvsetter.start", "when": "viewItem == project", "group": "inline" },
+        { "command": "fastenvsetter.stop", "when": "viewItem == project", "group": "inline" },
+        { "command": "fastenvsetter.restart", "when": "viewItem == service", "group": "inline" },
+        { "command": "fastenvsetter.logs", "when": "viewItem == service", "group": "inline" }
+      ],
+      "commandPalette": [
+        { "command": "fastenvsetter.start", "when": "false" },
+        { "command": "fastenvsetter.stop", "when": "false" },
+        { "command": "fastenvsetter.restart", "when": "false" },
+        { "command": "fastenvsetter.logs", "when": "false" }
+      ]
+    },
+    "configuration": {
+      "title": "FastEnvSetter",
+      "properties": {
+        "fastenvsetter.executablePath": {
+          "type": "string",
+          "default": "FastEnvSetter.exe",
+          "scope": "machine",
+          "description": "Pfad zur FastEnvSetter.exe, falls sie nicht im PATH liegt."
+        },
+        "fastenvsetter.refreshSeconds": {
+          "type": "number",
+          "default": 5,
+          "minimum": 1,
+          "description": "Abstand der Statusabfrage in Sekunden."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --target=node20 --minify",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
+    "prepackage": "node -e \"require('fs').copyFileSync('../../LICENSE','LICENSE');require('fs').copyFileSync('../../assets/icon-128.png','media/icon.png')\"",
+    "package": "npm run build && vsce package --no-dependencies --out fastenvsetter-1.0.0.vsix"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "~1.95.0",
+    "@vscode/vsce": "^3.0.0",
+    "esbuild": "^0.25.0",
+    "eslint": "^9.0.0",
+    "typescript": "^5.6.0",
+    "typescript-eslint": "^8.0.0"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "Id": "blue-style",
+  "Name": "Tiefblau",
+  "Version": "1.0.0",
+  "Publisher": "LetsJonnTV",
+  "Description": "Ein ruhiger, tiefblauer Style.",
+  "ApiVersion": "1.0",
+  "Kind": "style"
+}

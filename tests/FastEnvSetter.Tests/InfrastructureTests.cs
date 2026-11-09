@@ -35,7 +35,7 @@ public sealed class InfrastructureTests : IDisposable
         using var store = new JsonAppDataStore(new DpapiSecretProtector(), DataFile);
         var profile = store.Data.Profiles[0];
         Assert.True(profile.Variables[0].DecryptionFailed);
-        Assert.NotEmpty(EnvResolver.Resolve(new Project(), profile).Errors);
+        Assert.NotEmpty(EnvResolver.Resolve(new Project { EnvProfileIds = [profile.Id] }, null, store.Data.Profiles).Errors);
 
         store.SaveNow();
         Assert.Contains("bm9wZQ==", File.ReadAllText(DataFile));
@@ -57,24 +57,26 @@ public sealed class InfrastructureTests : IDisposable
     {
         var off = new EnvVariable { Name = "OFF", Value = "1" };
         var on = new EnvVariable { Name = "ON", Value = "2" };
-        var project = new Project { DisabledVariableIds = [off.Id] };
+        var profile = new EnvProfile { Variables = [off, on] };
+        var project = new Project { DisabledVariableIds = [off.Id], EnvProfileIds = [profile.Id] };
 
-        var resolved = EnvResolver.Resolve(project, new EnvProfile { Variables = [off, on] });
+        var resolved = EnvResolver.Resolve(project, null, [profile]);
         Assert.Equal(["ON"], resolved.Variables.Keys);
 
-        var duplicate = EnvResolver.Resolve(new Project(), new EnvProfile { Variables = [new() { Name = "A" }, new() { Name = "a" }] });
+        var duplicates = new EnvProfile { Variables = [new() { Name = "A" }, new() { Name = "a" }] };
+        var duplicate = EnvResolver.Resolve(new Project { EnvProfileIds = [duplicates.Id] }, null, [duplicates]);
         Assert.Single(duplicate.Errors);
     }
 
     private static ProcessSupervisor Supervisor() =>
-        new(new RunnerRegistry([new PowerShellRunner()]), []);
+        new(new RunnerRegistry([new NodeRunner()]), []);
 
     private static ServiceDefinition Shell(string command) => new()
     {
         Name = "test",
-        RunnerId = PowerShellRunner.RunnerId,
+        RunnerId = "node",
         WorkingDirectory = Path.GetTempPath(),
-        Settings = new() { ["edition"] = "Windows PowerShell 5.1", [RunnerBase.CustomCommandKey] = command },
+        Settings = new() { [RunnerBase.CustomCommandKey] = command },
     };
 
     private static async Task WaitForAsync(Func<bool> condition)
@@ -91,14 +93,15 @@ public sealed class InfrastructureTests : IDisposable
         var plain = new EnvVariable { Name = "FES_PLAIN", Value = "sichtbar" };
         var secret = new EnvVariable { Name = "FES_SECRET", Value = "geheim-123", IsSecret = true };
         var off = new EnvVariable { Name = "FES_OFF", Value = "nein" };
-        var service = Shell("Write-Output \"$env:FES_PLAIN|$env:FES_SECRET|[$env:FES_OFF]\"");
-        var project = new Project { Services = [service], DisabledVariableIds = [off.Id] };
+        var service = Shell("if defined FES_OFF (echo gesetzt) else (echo %FES_PLAIN% %FES_SECRET% leer)");
+        var profile = new EnvProfile { Variables = [plain, secret, off] };
+        var project = new Project { Services = [service], DisabledVariableIds = [off.Id], EnvProfileIds = [profile.Id] };
 
-        var result = await supervisor.StartProjectAsync(project, new EnvProfile { Variables = [plain, secret, off] });
+        var result = await supervisor.StartProjectAsync(project, [profile]);
 
         Assert.True(result.Success, string.Join(", ", result.Errors));
         await WaitForAsync(() => supervisor.GetState(service.Id) == ServiceState.Stopped);
-        Assert.Contains(supervisor.GetLogSince(service.Id, 0), e => e.Text == "sichtbar|••••••|[]");
+        Assert.Contains(supervisor.GetLogSince(service.Id, 0), e => e.Text.Trim() == "sichtbar •••••• leer");
         Assert.DoesNotContain(supervisor.GetLogSince(service.Id, 0), e => e.Text.Contains("geheim-123"));
     }
 
@@ -107,10 +110,10 @@ public sealed class InfrastructureTests : IDisposable
     {
         using var supervisor = Supervisor();
         var crashing = Shell("exit 3");
-        var running = Shell("Start-Sleep 60");
+        var running = Shell("ping -n 60 127.0.0.1");
         var project = new Project { Services = [crashing, running] };
 
-        await supervisor.StartProjectAsync(project, null);
+        await supervisor.StartProjectAsync(project, []);
 
         await WaitForAsync(() => supervisor.GetState(crashing.Id) == ServiceState.Failed);
         Assert.Equal(ServiceState.Running, supervisor.GetState(running.Id));
@@ -126,7 +129,7 @@ public sealed class InfrastructureTests : IDisposable
         var service = Shell("exit 0");
         service.WorkingDirectory = @"C:\gibt\es\nicht";
 
-        var result = await supervisor.StartProjectAsync(new Project { Services = [service] }, null);
+        var result = await supervisor.StartProjectAsync(new Project { Services = [service] }, []);
 
         Assert.False(result.Success);
         Assert.Equal(ServiceState.Failed, supervisor.GetState(service.Id));

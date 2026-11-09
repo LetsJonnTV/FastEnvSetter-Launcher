@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
 using System.Text;
@@ -8,7 +9,7 @@ using FastEnvSetter.Core;
 
 namespace FastEnvSetter.Infrastructure;
 
-public sealed class ProcessSupervisor(RunnerRegistry runners, IEnumerable<IAppEventHandler> handlers)
+public sealed class ProcessSupervisor(RunnerRegistry runners, IEnumerable<IAppEventHandler> handlers, IEnumerable<ISecretProvider>? secretProviders = null)
     : IProcessSupervisor, IDisposable
 {
     private const int MaxLogLines = 5000;
@@ -23,6 +24,7 @@ public sealed class ProcessSupervisor(RunnerRegistry runners, IEnumerable<IAppEv
     private readonly ConcurrentDictionary<Guid, Session> _sessions = new();
     private readonly IReadOnlyList<IAppEventHandler> _handlers = handlers.ToList();
     private readonly JobObject _job = new();
+    private readonly IReadOnlyList<ISecretProvider> _secretProviders = secretProviders?.ToList() ?? [];
 
     public event Action<ServiceStateChange>? StateChanged;
 
@@ -56,7 +58,11 @@ public sealed class ProcessSupervisor(RunnerRegistry runners, IEnumerable<IAppEv
         if (order is null)
             return new StartResult(["Die Dienste hängen im Kreis voneinander ab."]);
 
-        var environments = project.Services.ToDictionary(s => s.Id, s => EnvResolver.Resolve(project, s, profiles));
+        var (vaultValues, vaultErrors) = await FetchVaultValuesAsync(project, project.Services, profiles, cancellationToken);
+        if (vaultErrors.Count > 0)
+            return new StartResult(vaultErrors);
+
+        var environments = project.Services.ToDictionary(s => s.Id, s => EnvResolver.Resolve(project, s, profiles, vaultValues));
         var environmentErrors = environments.Values.SelectMany(e => e.Errors).Distinct().ToList();
         if (environmentErrors.Count > 0)
             return new StartResult(environmentErrors);
@@ -104,7 +110,11 @@ public sealed class ProcessSupervisor(RunnerRegistry runners, IEnumerable<IAppEv
 
     public async Task<StartResult> StartServiceAsync(Project project, ServiceDefinition service, IReadOnlyList<EnvProfile> profiles)
     {
-        var environment = EnvResolver.Resolve(project, service, profiles);
+        var (vaultValues, vaultErrors) = await FetchVaultValuesAsync(project, [service], profiles, CancellationToken.None);
+        if (vaultErrors.Count > 0)
+            return new StartResult(vaultErrors);
+
+        var environment = EnvResolver.Resolve(project, service, profiles, vaultValues);
         if (environment.Errors.Count > 0)
             return new StartResult(environment.Errors);
         if (IsActive(GetState(service.Id)))
@@ -173,6 +183,14 @@ public sealed class ProcessSupervisor(RunnerRegistry runners, IEnumerable<IAppEv
     public Task StopAllAsync() => Task.WhenAll(_sessions.Keys.Select(StopServiceAsync));
 
     public void Dispose() => _job.Dispose();
+
+    private Task<(IReadOnlyDictionary<Guid, string> Values, IReadOnlyList<string> Errors)> FetchVaultValuesAsync(
+        Project project, IEnumerable<ServiceDefinition> services, IReadOnlyList<EnvProfile> profiles, CancellationToken token)
+    {
+        var variables = services.Where(s => !IsActive(GetState(s.Id)))
+            .SelectMany(s => EnvResolver.Winners(project, s, profiles).Values);
+        return VaultFetcher.FetchAsync(variables, _secretProviders, token);
+    }
 
     private static bool IsActive(ServiceState state) =>
         state is ServiceState.Waiting or ServiceState.Starting or ServiceState.Running or ServiceState.Stopping;
@@ -270,17 +288,31 @@ public sealed class ProcessSupervisor(RunnerRegistry runners, IEnumerable<IAppEv
         {
             if (check.Kind == ReadinessKind.Port)
             {
-                using var client = new TcpClient();
-                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
-                timeout.CancelAfter(TimeSpan.FromSeconds(1));
-                await client.ConnectAsync("localhost", check.Port, timeout.Token);
-                return true;
+                // „localhost“ versucht zuerst IPv6 und läuft bei reinen IPv4-Diensten ins Zeitlimit.
+                return await CanConnectAsync(IPAddress.Loopback, check.Port, token)
+                    || await CanConnectAsync(IPAddress.IPv6Loopback, check.Port, token);
             }
 
             using var response = await ReadinessClient.GetAsync(check.Url, token);
             return (int)response.StatusCode < 500;
         }
         catch (Exception e) when (e is SocketException or HttpRequestException or OperationCanceledException or InvalidOperationException or UriFormatException or ArgumentOutOfRangeException)
+        {
+            return false;
+        }
+    }
+
+    private static async Task<bool> CanConnectAsync(IPAddress address, int port, CancellationToken token)
+    {
+        try
+        {
+            using var client = new TcpClient(address.AddressFamily);
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
+            timeout.CancelAfter(TimeSpan.FromSeconds(1));
+            await client.ConnectAsync(address, port, timeout.Token);
+            return true;
+        }
+        catch (Exception e) when (e is SocketException or OperationCanceledException)
         {
             return false;
         }
@@ -566,9 +598,10 @@ public sealed class ProcessSupervisor(RunnerRegistry runners, IEnumerable<IAppEv
         foreach (var secret in session.MaskedValues)
             text = text.Replace(secret, "••••••");
 
+        var (plain, spans) = Ansi.Parse(text);
         lock (session.Log)
         {
-            session.Log.Add(new LogEntry(++session.LastSequence, DateTime.Now, kind, text));
+            session.Log.Add(new LogEntry(++session.LastSequence, DateTime.Now, kind, plain, spans));
             if (session.Log.Count > MaxLogLines)
                 session.Log.RemoveRange(0, session.Log.Count - MaxLogLines);
         }

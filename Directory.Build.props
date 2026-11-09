@@ -1,0 +1,13 @@
+<Project>
+  <PropertyGroup>
+    <Version>1.0.0</Version>
+    <Authors>LetsJonnTV</Authors>
+    <Company>LetsJonnTV</Company>
+    <Product>FastEnvSetter</Product>
+    <Description>Windows-Launcher, der Projekte und Shells mit vorausgewählten Umgebungsvariablen startet.</Description>
+    <Copyright>Copyright (c) 2026 LetsJonnTV</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/LetsJonnTV/FastEnvSetter-Launcher</RepositoryUrl>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+</Project>

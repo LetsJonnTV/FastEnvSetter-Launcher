@@ -80,6 +80,11 @@ public sealed class PythonRunner : RunnerBase
         ArgsField(),
     ];
 
+    public override IReadOnlyList<int> GetExpectedPorts(ServiceDefinition service) =>
+        !HasCustomCommand(service) && Value(service, "mode") is Uvicorn or Flask or Django && int.TryParse(Value(service, "port"), out var port)
+            ? [port]
+            : [];
+
     public override IReadOnlyList<string> Validate(ServiceDefinition service)
     {
         var venv = Value(service, "venv");

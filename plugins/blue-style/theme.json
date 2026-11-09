@@ -1,0 +1,9 @@
+{
+  "Base": "Dark",
+  "Accent": "#4DA3FF",
+  "Background": "#0B1B33",
+  "Card": "#14294A",
+  "CardStroke": "#25426E",
+  "TextPrimary": "#EAF2FF",
+  "TextSecondary": "#B5C7E3"
+}

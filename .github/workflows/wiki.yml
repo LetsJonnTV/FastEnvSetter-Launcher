@@ -1,0 +1,29 @@
+name: Wiki
+
+on:
+  push:
+    branches: [master, main]
+    paths: ['docs/wiki/**']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ github.repository }}.wiki
+          path: wiki
+      - name: Seiten übernehmen
+        run: |
+          find wiki -maxdepth 1 -type f -name '*.md' -delete
+          cp docs/wiki/*.md wiki/
+          cd wiki
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --quiet || { git commit -m "Wiki aus $GITHUB_SHA aktualisieren"; git push; }

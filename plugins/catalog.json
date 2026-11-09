@@ -1,0 +1,9 @@
+[
+  {
+    "name": "Tiefblau",
+    "description": "Ein ruhiger, tiefblauer Style.",
+    "kind": "style",
+    "publisher": "LetsJonnTV",
+    "reference": "ghcr.io/letsjonntv/fastenvsetter-plugins/blue-style:1.0.0"
+  }
+]

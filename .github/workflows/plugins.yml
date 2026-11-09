@@ -1,0 +1,40 @@
+name: Plugins
+
+on:
+  push:
+    tags: ['plugin-*-v*.*.*']
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oras-project/setup-oras@5e2f2482b30b0cb3e14e67f89a80c88c659a7c63 # v2.0.3
+      - name: Plugin packen
+        id: pack
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF_NAME -notmatch '^plugin-(?<name>[a-z0-9-]+)-v(?<version>\d+\.\d+\.\d+)$') { throw 'Ungültiger Tag.' }
+          $name = $Matches.name; $version = $Matches.version
+          $manifest = Get-Content "plugins/$name/plugin.json" -Raw | ConvertFrom-Json
+          if ($manifest.Version -ne $version) { throw "plugin.json hat $($manifest.Version), der Tag $version." }
+          scripts/pack-plugin.ps1 -Path "plugins/$name" -Output "$name.fesplugin"
+          "name=$name" >> $env:GITHUB_OUTPUT
+          "version=$version" >> $env:GITHUB_OUTPUT
+      - name: Nach GHCR veröffentlichen
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+          OWNER: ${{ github.repository_owner }}
+          NAME: ${{ steps.pack.outputs.name }}
+          VERSION: ${{ steps.pack.outputs.version }}
+        run: |
+          echo "$GHCR_TOKEN" | oras login ghcr.io -u "$OWNER" --password-stdin
+          oras push "ghcr.io/${OWNER,,}/fastenvsetter-plugins/$NAME:$VERSION" \
+            --artifact-type application/vnd.fastenvsetter.plugin.v1 \
+            "$NAME.fesplugin:application/vnd.fastenvsetter.plugin.layer.v1+zip"

@@ -1,0 +1,31 @@
+name: Fehler melden
+description: Etwas funktioniert nicht wie erwartet.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Sicherheitslücken bitte nicht hier, sondern wie in SECURITY.md beschrieben melden. Keine echten Secrets einfügen.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Ausgabe von `FastEnvSetter --version`
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Schritte zum Nachstellen
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Erwartet und tatsächlich
+    validations:
+      required: true
+  - type: input
+    id: plugins
+    attributes:
+      label: Aktive Plugins
+      description: Tritt der Fehler auch mit `--safe-mode` auf?

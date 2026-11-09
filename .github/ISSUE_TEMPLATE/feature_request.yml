@@ -1,0 +1,21 @@
+name: Feature vorschlagen
+description: Eine Idee für FastEnvSetter.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Welches Problem soll gelöst werden?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Vorschlag
+    validations:
+      required: true
+  - type: dropdown
+    id: plugin
+    attributes:
+      label: Wäre das auch als Plugin möglich?
+      options: ['Ja', 'Nein', 'Weiß nicht']

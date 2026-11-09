@@ -24,14 +24,14 @@ public class DotEnvTests
         Assert.Equal("mehr\nzeilig", values["E"]);
         Assert.Equal("", values["F"]);
         Assert.Equal("url#kein-kommentar", values["G"]);
-        Assert.Equal([9], document.SkippedLines);
+        Assert.Equal([10], document.SkippedLines);
     }
 
     [Fact]
     public void Unterminated_quote_is_skipped()
     {
         var document = DotEnv.Parse("A=\"offen\nB=2");
-        Assert.Empty(document.Entries);
+        Assert.Equal("B", document.Entries.Single().Name);
         Assert.Equal([1], document.SkippedLines);
     }
 
@@ -174,7 +174,18 @@ public class EnvLayerTests
 
 public class OrchestrationTests
 {
-    private static ProcessSupervisor Supervisor() => new(new RunnerRegistry([new PowerShellRunner()]), []);
+    private const string LongRunning = "ping -n 60 127.0.0.1";
+
+    private static ProcessSupervisor Supervisor() => new(new RunnerRegistry([new NodeRunner(), new PowerShellRunner()]), []);
+
+    /// <summary>Läuft über cmd.exe, weil PowerShell je nach Profil sehr langsam startet.</summary>
+    private static ServiceDefinition Cmd(string name, string command) => new()
+    {
+        Name = name,
+        RunnerId = "node",
+        WorkingDirectory = Path.GetTempPath(),
+        Settings = new() { [RunnerBase.CustomCommandKey] = command },
+    };
 
     private static ServiceDefinition Shell(string name, string command) => new()
     {
@@ -223,8 +234,8 @@ public class OrchestrationTests
         using var supervisor = Supervisor();
         var port = FreePort();
         var db = Shell("db", ListenCommand(port, 2));
-        db.Readiness = new ReadinessCheck { Kind = ReadinessKind.Port, Port = port, TimeoutSeconds = 30 };
-        var api = Shell("api", "Write-Output (Test-NetConnection -ComputerName localhost -Port " + port + " -InformationLevel Quiet); Start-Sleep 60");
+        db.Readiness = new ReadinessCheck { Kind = ReadinessKind.Port, Port = port, TimeoutSeconds = 90 };
+        var api = Cmd("api", $"netstat -an | findstr LISTENING | findstr :{port}");
         api.DependsOn = [db.Id];
         var project = new Project { Services = [api, db] };
 
@@ -232,7 +243,7 @@ public class OrchestrationTests
 
         Assert.True(result.Success, string.Join(",", result.Errors));
         Assert.Equal(ServiceState.Running, supervisor.GetState(db.Id));
-        await WaitForAsync(() => supervisor.GetLogSince(api.Id, 0).Any(l => l.Text == "True"));
+        await WaitForAsync(() => supervisor.GetLogSince(api.Id, 0).Any(l => l.Text.Contains("LISTENING")));
         await supervisor.StopProjectAsync(project);
     }
 
@@ -240,11 +251,11 @@ public class OrchestrationTests
     public async Task Failed_dependency_blocks_dependent_only()
     {
         using var supervisor = Supervisor();
-        var db = Shell("db", "exit 0");
+        var db = Cmd("db", "exit 0");
         db.PreSteps = ["cmd /c exit 7"];
-        var api = Shell("api", "Start-Sleep 60");
+        var api = Cmd("api", LongRunning);
         api.DependsOn = [db.Id];
-        var other = Shell("other", "Start-Sleep 60");
+        var other = Cmd("other", LongRunning);
         var project = new Project { Services = [db, api, other] };
 
         var result = await supervisor.StartProjectAsync(project, []);
@@ -261,7 +272,7 @@ public class OrchestrationTests
     {
         using var supervisor = Supervisor();
         var profile = new EnvProfile { Variables = [new EnvVariable { Name = "FES_STEP", Value = "im-schritt" }] };
-        var service = Shell("s", "exit 0");
+        var service = Cmd("s", "exit 0");
         service.PreSteps = ["echo %FES_STEP%"];
         var project = new Project { Services = [service], EnvProfileIds = [profile.Id] };
 
@@ -275,7 +286,7 @@ public class OrchestrationTests
     public async Task Restart_policy_gives_up_after_limit()
     {
         using var supervisor = Supervisor();
-        var service = Shell("s", "exit 3");
+        var service = Cmd("s", "exit 3");
         service.RestartPolicy = RestartPolicy.OnFailure;
 
         await supervisor.StartProjectAsync(new Project { Services = [service] }, []);
@@ -290,7 +301,7 @@ public class OrchestrationTests
     public async Task Stop_during_restart_delay_ends_retries()
     {
         using var supervisor = Supervisor();
-        var service = Shell("s", "exit 3");
+        var service = Cmd("s", "exit 3");
         service.RestartPolicy = RestartPolicy.OnFailure;
         await supervisor.StartProjectAsync(new Project { Services = [service] }, []);
         await WaitForAsync(() => supervisor.GetMessage(service.Id)?.StartsWith("Neustart") == true);

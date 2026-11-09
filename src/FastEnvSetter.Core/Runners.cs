@@ -84,6 +84,7 @@ public interface IRunner
     DetectionResult Detect(string folder) => DetectionResult.Empty;
     IReadOnlyList<string> Validate(ServiceDefinition service) => [];
     bool RequiresTerminal(ServiceDefinition service) => false;
+    IReadOnlyList<int> GetExpectedPorts(ServiceDefinition service) => [];
     ProcessCommand BuildStart(ServiceDefinition service);
     ProcessCommand? BuildStop(ServiceDefinition service) => null;
 }

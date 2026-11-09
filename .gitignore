@@ -482,3 +482,27 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+
+# FastEnvSetter
+publish/
+artifacts/
+*.vsix
+*.fesplugin
+*.nupkg
+node_modules/
+extensions/vscode/dist/
+coverage/
+.env
+.env.*
+!.env.example
+*.pfx
+*.p12
+*.snk
+*.pem
+*.key
+.vscode/coding-times.db
+graphify-out/
+Thumbs.db
+extensions/vscode/LICENSE
+extensions/vscode/media/

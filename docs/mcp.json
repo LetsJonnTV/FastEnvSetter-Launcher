@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "fastenvsetter": {
+      "command": "C:\\Tools\\FastEnvSetter\\FastEnvSetter.Mcp.exe",
+      "args": [
+        "--launcher",
+        "C:\\Tools\\FastEnvSetter\\FastEnvSetter.exe"
+      ]
+    }
+  }
+}

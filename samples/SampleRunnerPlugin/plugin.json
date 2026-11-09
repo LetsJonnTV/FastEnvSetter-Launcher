@@ -1,0 +1,11 @@
+{
+  "Id": "sample-ruby-runner",
+  "Name": "Ruby-Runner (Beispiel)",
+  "Version": "1.0.0",
+  "Publisher": "LetsJonnTV",
+  "Description": "Vorlage für Code-Plugins: fügt Ruby als Startart hinzu.",
+  "ApiVersion": "1.0",
+  "Kind": "code",
+  "EntryAssembly": "SampleRunnerPlugin.dll",
+  "Permissions": [ "Startet ruby aus dem PATH" ]
+}

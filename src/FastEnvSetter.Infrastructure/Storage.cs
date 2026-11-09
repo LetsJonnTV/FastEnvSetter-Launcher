@@ -60,11 +60,8 @@ public sealed class JsonAppDataStore : IAppDataStore, IDisposable
 
             // Geschrieben wird eine Kopie, damit Klartext-Secrets im Speicher unangetastet bleiben.
             var snapshot = JsonSerializer.Deserialize<AppData>(JsonSerializer.Serialize(Data))!;
-            for (var p = 0; p < Data.Profiles.Count; p++)
-            {
-                for (var v = 0; v < Data.Profiles[p].Variables.Count; v++)
-                    PrepareForDisk(Data.Profiles[p].Variables[v], snapshot.Profiles[p].Variables[v]);
-            }
+            foreach (var (source, copy) in AllVariables(Data).Zip(AllVariables(snapshot)))
+                PrepareForDisk(source, copy);
 
             var temporary = FilePath + ".tmp";
             File.WriteAllText(temporary, JsonSerializer.Serialize(snapshot, Options));
@@ -76,7 +73,12 @@ public sealed class JsonAppDataStore : IAppDataStore, IDisposable
 
     private void PrepareForDisk(EnvVariable source, EnvVariable copy)
     {
-        if (source.IsSecret)
+        if (source.SecretRef is not null)
+        {
+            copy.Value = "";
+            copy.ProtectedValue = null;
+        }
+        else if (source.IsSecret)
         {
             copy.Value = "";
             copy.ProtectedValue = source.DecryptionFailed ? source.ProtectedValue : _protector.Protect(source.Value);
@@ -86,6 +88,10 @@ public sealed class JsonAppDataStore : IAppDataStore, IDisposable
             copy.ProtectedValue = null;
         }
     }
+
+    private static IEnumerable<EnvVariable> AllVariables(AppData data) =>
+        data.Profiles.SelectMany(p => p.Variables)
+            .Concat(data.Projects.SelectMany(p => p.Services).SelectMany(s => s.ExtraVariables));
 
     private AppData Load()
     {
@@ -105,7 +111,14 @@ public sealed class JsonAppDataStore : IAppDataStore, IDisposable
             return new AppData();
         }
 
-        foreach (var variable in data.Profiles.SelectMany(p => p.Variables).Where(v => v.IsSecret))
+        if (data.SchemaVersion < AppData.CurrentSchemaVersion)
+        {
+            var backup = $"{FilePath}.v{data.SchemaVersion}.bak";
+            if (!File.Exists(backup))
+                File.Copy(FilePath, backup);
+        }
+
+        foreach (var variable in AllVariables(data).Where(v => v.IsSecret && v.SecretRef is null))
         {
             var plain = variable.ProtectedValue is null ? null : _protector.Unprotect(variable.ProtectedValue);
             variable.Value = plain ?? "";
@@ -118,6 +131,16 @@ public sealed class JsonAppDataStore : IAppDataStore, IDisposable
     /// <summary>Spätere Formatänderungen werden hier schrittweise nachgezogen.</summary>
     private static AppData Migrate(AppData data)
     {
+        if (data.SchemaVersion < 2)
+        {
+            foreach (var project in data.Projects)
+            {
+                if (project.EnvProfileId is { } id && !project.EnvProfileIds.Contains(id))
+                    project.EnvProfileIds.Add(id);
+                project.EnvProfileId = null;
+            }
+        }
+
         data.SchemaVersion = AppData.CurrentSchemaVersion;
         return data;
     }
