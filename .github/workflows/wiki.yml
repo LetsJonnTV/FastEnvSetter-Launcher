@@ -13,6 +13,9 @@ jobs:
   sync:
     runs-on: self-hosted
     steps:
+      - name: Git auf dem Runner sicherstellen
+        if: runner.environment == 'self-hosted'
+        run: command -v git >/dev/null || { apt-get update -qq && apt-get install -y -qq git; }
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
