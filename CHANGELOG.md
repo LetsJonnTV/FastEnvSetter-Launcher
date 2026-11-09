@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-11-09
+
+### Fixed
+
+- Ein Doppelklick auf die Exe blieb wirkungslos, solange die VS Code Extension den Status abfragte.
+- Statusabfragen der Extension liefen bei beendetem Launcher jeweils rund 20 Sekunden und häuften Prozesse an.
+
 ## [1.0.0] - 2026-11-09
 
 ### Added
@@ -25,5 +32,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Projekt-Export und -Import für Teams ohne lokale Secrets.
 - Eigenes App-Icon sowie CI/CD-Workflows für Tests, Sicherheitsprüfungen, Builds und Releases.
 
-[Unreleased]: https://github.com/LetsJonnTV/FastEnvSetter-Launcher/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/LetsJonnTV/FastEnvSetter-Launcher/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/LetsJonnTV/FastEnvSetter-Launcher/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/LetsJonnTV/FastEnvSetter-Launcher/releases/tag/v1.0.0

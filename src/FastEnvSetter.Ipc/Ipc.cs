@@ -49,6 +49,16 @@ public sealed class SingleInstance : IDisposable
     public string PipeName { get; }
     public bool IsFirst { get; }
 
+    /// <summary>Prüft, ob eine Instanz läuft, ohne selbst die Sperre zu belegen.</summary>
+    public static bool IsRunning(string pipeName)
+    {
+        if (!Mutex.TryOpenExisting($"Local\\{pipeName}", out var mutex))
+            return false;
+
+        mutex.Dispose();
+        return true;
+    }
+
     public void Listen(Func<string[], Task<CliResponse>> handler) => _ = Task.Run(async () =>
     {
         while (!_stop.IsCancellationRequested)

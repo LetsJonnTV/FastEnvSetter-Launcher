@@ -58,14 +58,32 @@ public partial class App : Application
             WaitForExit(previous);
 
         var pipeName = PipeNames.For(dataPath);
+
+        // Statusabfragen dürfen die Sperre nicht belegen, sonst hält ein Doppelklick sie für eine laufende App.
+        if (noStart && CliHandler.IsCommand(commandArguments) && !SingleInstance.IsRunning(pipeName))
+        {
+            Print(new CliResponse(NotRunningExitCode, "FastEnvSetter läuft nicht."));
+            Shutdown(NotRunningExitCode);
+            return;
+        }
+
         _instance = new SingleInstance(pipeName);
         if (!_instance.IsFirst)
         {
             if (tray)
+            {
                 Shutdown(0);
-            else
-                await ForwardAsync(pipeName, commandArguments.Length == 0 ? ["activate"] : commandArguments, StartupRetryWindow);
-            return;
+                return;
+            }
+
+            if (commandArguments.Length > 0)
+            {
+                await ForwardAsync(pipeName, commandArguments, StartupRetryWindow);
+                return;
+            }
+
+            if (await ActivateOrTakeOverAsync(pipeName))
+                return;
         }
 
         if (CliHandler.IsCommand(commandArguments))
@@ -130,7 +148,9 @@ public partial class App : Application
             shell.Show("Hinweis", string.Join(Environment.NewLine, warnings), InfoBarSeverity.Warning);
 
         var cli = _provider.GetRequiredService<CliHandler>();
-        _instance.Listen(args => Dispatcher.InvokeAsync(() => HandleAsync(cli, shellWindow, args)).Task.Unwrap());
+        // Kurzlebige CLI-Aufrufe beantworten nichts, sonst würden sie etwa das Öffnen des Fensters annehmen und enden.
+        if (!isCommand)
+            _instance.Listen(args => Dispatcher.InvokeAsync(() => HandleAsync(cli, shellWindow, args)).Task.Unwrap());
 
         await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
         if (!safeMode)
@@ -260,6 +280,34 @@ public partial class App : Application
         if (safeMode)
             startInfo.ArgumentList.Add("--safe-mode");
         Process.Start(startInfo)?.Dispose();
+    }
+
+    /// <summary>
+    /// Holt eine laufende App nach vorn. Belegt nur ein kurzlebiger CLI-Aufruf die Sperre, übernimmt dieser Start sie.
+    /// </summary>
+    /// <returns>Wahr, wenn dieser Prozess nichts weiter tun muss.</returns>
+    private async Task<bool> ActivateOrTakeOverAsync(string pipeName)
+    {
+        var deadline = DateTime.UtcNow + StartupRetryWindow;
+        while (DateTime.UtcNow < deadline)
+        {
+            try
+            {
+                await PipeClient.SendAsync(pipeName, ["activate"], 1000);
+                Shutdown(0);
+                return true;
+            }
+            catch (Exception e) when (e is TimeoutException or IOException or UnauthorizedAccessException)
+            {
+                _instance!.Dispose();
+                _instance = new SingleInstance(pipeName);
+                if (_instance.IsFirst)
+                    return false;
+            }
+        }
+
+        Shutdown(1);
+        return true;
     }
 
     private async Task ForwardAsync(string pipeName, string[] arguments, TimeSpan retryWindow)

@@ -111,11 +111,8 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const refresh = async (): Promise<void> => {
     try {
-      let result = await run(['status', '--json', '--no-start']);
+      const result = await run(['status', '--json', '--no-start']);
       const running = result.code !== NOT_RUNNING_CODE;
-      if (!running) {
-        result = await run(['list', '--json', '--no-start']);
-      }
       const projects: Project[] = running && result.code === 0 ? (JSON.parse(result.stdout) as Project[]) : provider.projects;
       provider.update(projects, running);
       const active = projects.flatMap((p) => p.services).filter((s) => ACTIVE_STATES.has(s.state)).length;

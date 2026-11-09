@@ -2,7 +2,7 @@
   "name": "fastenvsetter",
   "displayName": "FastEnvSetter",
   "description": "Projekte mit vorausgewählten Umgebungsvariablen direkt aus VS Code starten.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "publisher": "letsjonntv",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -77,7 +77,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
     "prepackage": "node -e \"require('fs').mkdirSync('media',{recursive:true});require('fs').copyFileSync('../../LICENSE','LICENSE');require('fs').copyFileSync('../../assets/icon-128.png','media/icon.png')\"",
-    "package": "npm run build && vsce package --no-dependencies --out fastenvsetter-1.0.0.vsix"
+    "package": "npm run build && vsce package --no-dependencies"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
