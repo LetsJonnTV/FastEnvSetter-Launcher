@@ -1,0 +1,111 @@
+<Application x:Class="FastEnvSetter.App.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:local="clr-namespace:FastEnvSetter.App"
+             ShutdownMode="OnExplicitShutdown">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ui:ThemesDictionary Theme="Dark" />
+                <ui:ControlsDictionary />
+            </ResourceDictionary.MergedDictionaries>
+
+            <local:SymbolConverter x:Key="Symbol" />
+            <local:VisibilityConverter x:Key="Visible" />
+            <local:VisibilityConverter x:Key="Hidden" Invert="True" />
+            <local:NotConverter x:Key="Not" />
+            <SolidColorBrush x:Key="ShellBackground" Color="Transparent" />
+
+            <Style x:Key="PageTitle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="28" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+            </Style>
+            <Style x:Key="SectionTitle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="16" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+            </Style>
+            <Style x:Key="Label" TargetType="TextBlock">
+                <Setter Property="Margin" Value="0,0,0,4" />
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+            </Style>
+            <Style x:Key="Muted" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+            </Style>
+
+            <DataTemplate x:Key="VariableRow">
+                <StackPanel Margin="0,0,0,8">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="2*" />
+                            <ColumnDefinition Width="8" />
+                            <ColumnDefinition Width="3*" />
+                            <ColumnDefinition Width="150" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <ui:TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="NAME" FontFamily="Cascadia Mono, Consolas" />
+                        <ui:TextBox Grid.Column="2" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="Wert"
+                                    Visibility="{Binding ShowPlain, Converter={StaticResource Visible}}" />
+                        <ui:PasswordBox Grid.Column="2" Password="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="Geheimer Wert"
+                                        Visibility="{Binding ShowPassword, Converter={StaticResource Visible}}" />
+                        <ui:TextBox Grid.Column="2" Text="{Binding Reference, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="{Binding ReferenceHint}"
+                                    Visibility="{Binding IsVault, Converter={StaticResource Visible}}" />
+                        <ComboBox Grid.Column="3" Margin="8,0,0,0" ItemsSource="{Binding SourceOptions}" SelectedItem="{Binding SelectedSource}" DisplayMemberPath="Name" />
+                        <CheckBox Grid.Column="4" Content="Geheim" IsChecked="{Binding IsSecret}" Margin="12,0,0,0"
+                                  Visibility="{Binding IsLocal, Converter={StaticResource Visible}}" />
+                        <ui:Button Grid.Column="5" Appearance="Transparent" Icon="{ui:SymbolIcon Delete24}" ToolTip="Entfernen"
+                                   Command="{Binding DataContext.RemoveVariableCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" />
+                    </Grid>
+                    <TextBlock Text="Lässt sich auf diesem Konto nicht entschlüsseln. Bitte den Wert neu eingeben." Foreground="#E5534B" FontSize="12" Margin="0,2,0,0"
+                               Visibility="{Binding DecryptionFailed, Converter={StaticResource Visible}}" />
+                </StackPanel>
+            </DataTemplate>
+
+            <DataTemplate x:Key="CheckRow">
+                <StackPanel Orientation="Horizontal" Margin="0,0,20,4" ToolTip="{Binding Detail}">
+                    <CheckBox IsChecked="{Binding IsChecked}">
+                        <TextBlock Text="{Binding Name}" />
+                    </CheckBox>
+                    <ui:SymbolIcon Symbol="LockClosed24" FontSize="14" Margin="4,0,0,0"
+                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                   Visibility="{Binding IsSecret, Converter={StaticResource Visible}}" />
+                    <TextBlock Text="{Binding Detail}" Margin="6,0,0,0" VerticalAlignment="Center" Style="{StaticResource Muted}"
+                               Visibility="{Binding Detail, Converter={StaticResource Visible}}" />
+                </StackPanel>
+            </DataTemplate>
+
+            <ItemsPanelTemplate x:Key="WrapItems">
+                <WrapPanel />
+            </ItemsPanelTemplate>
+
+            <Style x:Key="SoftListItem" TargetType="ListBoxItem">
+                <Setter Property="Margin" Value="0,2" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ListBoxItem">
+                            <Border x:Name="Root" CornerRadius="6" Background="Transparent" Padding="12,10">
+                                <ContentPresenter />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Root" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter TargetName="Root" Property="Background" Value="{DynamicResource SubtleFillColorTertiaryBrush}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

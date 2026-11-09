@@ -76,7 +76,7 @@
     "build": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --target=node20 --minify",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
-    "prepackage": "node -e \"require('fs').copyFileSync('../../LICENSE','LICENSE');require('fs').copyFileSync('../../assets/icon-128.png','media/icon.png')\"",
+    "prepackage": "node -e \"require('fs').mkdirSync('media',{recursive:true});require('fs').copyFileSync('../../LICENSE','LICENSE');require('fs').copyFileSync('../../assets/icon-128.png','media/icon.png')\"",
     "package": "npm run build && vsce package --no-dependencies --out fastenvsetter-1.0.0.vsix"
   },
   "devDependencies": {

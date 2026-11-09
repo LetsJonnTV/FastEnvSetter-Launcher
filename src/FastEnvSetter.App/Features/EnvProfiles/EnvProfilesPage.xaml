@@ -1,0 +1,114 @@
+<UserControl x:Class="FastEnvSetter.App.EnvProfilesPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
+    <Grid Margin="24,8,24,16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <DockPanel Margin="0,0,0,16">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <ui:Button Content="Aus .env importieren" Icon="{ui:SymbolIcon ArrowImport24}" Margin="0,0,8,0" Command="{Binding ImportAsNewCommand}" />
+                <ui:Button Appearance="Primary" Content="Neues Profil" Icon="{ui:SymbolIcon Add24}" Command="{Binding AddProfileCommand}" />
+            </StackPanel>
+            <TextBlock Text="Env-Profile" Style="{StaticResource PageTitle}" />
+        </DockPanel>
+
+        <TextBlock Grid.Row="1" Text="Ein Profil bündelt Variablen, die du in beliebigen Projekten nutzen kannst."
+                   HorizontalAlignment="Center" VerticalAlignment="Center" Style="{StaticResource Label}"
+                   Visibility="{Binding Profiles.Count, Converter={StaticResource Hidden}}" />
+
+        <ui:Card Grid.Row="1" Padding="16" VerticalAlignment="Stretch" VerticalContentAlignment="Stretch"
+                 Visibility="{Binding IsImporting, Converter={StaticResource Visible}}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <StackPanel Margin="0,0,0,12">
+                    <TextBlock Text="{Binding ImportTitle}" Style="{StaticResource SectionTitle}" />
+                    <TextBlock Text="{Binding ImportNote}" Margin="0,4,0,0" Style="{StaticResource Muted}"
+                               Visibility="{Binding ImportNote, Converter={StaticResource Visible}}" />
+                </StackPanel>
+
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding ImportRows}" Margin="0,0,10,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="2*" />
+                                        <ColumnDefinition Width="3*" />
+                                        <ColumnDefinition Width="100" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <CheckBox IsChecked="{Binding IsSelected}" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Entry.Name}" VerticalAlignment="Center" FontFamily="Cascadia Mono, Consolas"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Grid.Column="2" Text="{Binding Preview}" VerticalAlignment="Center" Margin="8,0" TextTrimming="CharacterEllipsis"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock Grid.Column="3" Text="{Binding Status}" VerticalAlignment="Center" Style="{StaticResource Muted}" />
+                                    <CheckBox Grid.Column="4" Content="Geheim" IsChecked="{Binding IsSecret}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+
+                <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+                    <ui:Button Content="Abbrechen" Margin="0,0,8,0" Command="{Binding CancelImportCommand}" />
+                    <ui:Button Appearance="Primary" Content="Übernehmen" Command="{Binding ConfirmImportCommand}" />
+                </StackPanel>
+            </Grid>
+        </ui:Card>
+
+        <Grid Grid.Row="1" Visibility="{Binding ShowEditor, Converter={StaticResource Visible}}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="220" />
+                <ColumnDefinition Width="16" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <ListBox ItemsSource="{Binding Profiles}" SelectedItem="{Binding Selected}" DisplayMemberPath="Name"
+                     ItemContainerStyle="{StaticResource SoftListItem}"
+                     Background="Transparent" BorderThickness="0" />
+
+            <ui:Card Grid.Column="2" Padding="16" VerticalAlignment="Stretch" VerticalContentAlignment="Stretch">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <DockPanel Margin="0,0,0,8">
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="8,0,0,0">
+                            <ui:Button Appearance="Transparent" Icon="{ui:SymbolIcon ArrowImport24}" ToolTip="Aus .env in dieses Profil importieren" Command="{Binding ImportIntoSelectedCommand}" />
+                            <ui:Button Appearance="Transparent" Icon="{ui:SymbolIcon ArrowExportUp24}" ToolTip="Als .env exportieren" Command="{Binding ExportCommand}" />
+                            <ui:Button Appearance="Transparent" Icon="{ui:SymbolIcon Copy24}" ToolTip="Duplizieren" Command="{Binding DuplicateProfileCommand}" />
+                            <ui:Button Appearance="Transparent" Icon="{ui:SymbolIcon Delete24}" ToolTip="Löschen" Command="{Binding DeleteProfileCommand}" />
+                        </StackPanel>
+                        <ui:TextBox Text="{Binding Selected.Name, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="Profilname" />
+                    </DockPanel>
+
+                    <DockPanel Grid.Row="1" Margin="0,0,0,12">
+                        <TextBlock Text="Erbt von" VerticalAlignment="Center" Margin="0,0,12,0" Style="{StaticResource Label}" />
+                        <ComboBox ItemsSource="{Binding ParentOptions}" SelectedItem="{Binding SelectedParent}" DisplayMemberPath="Name" />
+                    </DockPanel>
+
+                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding Variables}" Margin="0,0,10,0" ItemTemplate="{StaticResource VariableRow}" />
+                    </ScrollViewer>
+
+                    <ui:Button Grid.Row="3" Content="Variable hinzufügen" Icon="{ui:SymbolIcon Add24}" Margin="0,8,0,0" Command="{Binding AddVariableCommand}" />
+                </Grid>
+            </ui:Card>
+        </Grid>
+    </Grid>
+</UserControl>

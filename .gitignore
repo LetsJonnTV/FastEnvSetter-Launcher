@@ -506,3 +506,6 @@ graphify-out/
 Thumbs.db
 extensions/vscode/LICENSE
 extensions/vscode/media/
+
+# Die Regel *.app trifft unter Windows sonst auch diesen Projektordner.
+!src/FastEnvSetter.App/

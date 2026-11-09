@@ -1,0 +1,116 @@
+<UserControl x:Class="FastEnvSetter.App.RunningPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:local="clr-namespace:FastEnvSetter.App">
+    <Grid Margin="24,8,24,16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Text="Läuft" Style="{StaticResource PageTitle}" Margin="0,0,0,16" />
+
+        <TextBlock Grid.Row="1" Text="Sobald du ein Projekt startest, erscheinen seine Dienste und Logs hier."
+                   HorizontalAlignment="Center" VerticalAlignment="Center" Style="{StaticResource Label}"
+                   Visibility="{Binding Items.Count, Converter={StaticResource Hidden}}" />
+
+        <Grid Grid.Row="1" Visibility="{Binding Items.Count, Converter={StaticResource Visible}}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="280" />
+                <ColumnDefinition Width="16" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <ListBox x:Name="ServiceList" ItemsSource="{Binding Items}" SelectedItem="{Binding Selected}" Background="Transparent" BorderThickness="0"
+                     ItemContainerStyle="{StaticResource SoftListItem}">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Margin="0,4">
+                            <DockPanel>
+                                <Ellipse Width="9" Height="9" Margin="0,0,8,0" Fill="{Binding StateBrush}" />
+                                <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                            </DockPanel>
+                            <TextBlock Text="{Binding StateText}" Margin="17,2,0,4" Style="{StaticResource Muted}" />
+                            <StackPanel Orientation="Horizontal" Margin="13,0,0,0">
+                                <ui:Button Appearance="Transparent" Icon="{ui:SymbolIcon ArrowClockwise24}" ToolTip="Neu starten"
+                                           Command="{Binding DataContext.RestartCommand, ElementName=ServiceList}" CommandParameter="{Binding}" />
+                                <ui:Button Appearance="Transparent" Icon="{ui:SymbolIcon Globe24}" ToolTip="Im Browser öffnen"
+                                           Visibility="{Binding HasOpenUrl, Converter={StaticResource Visible}}"
+                                           Command="{Binding DataContext.OpenUrlCommand, ElementName=ServiceList}" CommandParameter="{Binding}" />
+                                <ui:Button Appearance="Transparent" Icon="{ui:SymbolIcon Folder24}" ToolTip="Ordner öffnen"
+                                           Visibility="{Binding HasFolder, Converter={StaticResource Visible}}"
+                                           Command="{Binding DataContext.OpenFolderCommand, ElementName=ServiceList}" CommandParameter="{Binding}" />
+                                <ui:Button Appearance="Transparent" Icon="{ui:SymbolIcon Code24}" ToolTip="In VS Code öffnen"
+                                           Visibility="{Binding HasFolder, Converter={StaticResource Visible}}"
+                                           Command="{Binding DataContext.OpenVsCodeCommand, ElementName=ServiceList}" CommandParameter="{Binding}" />
+                                <ui:Button Appearance="Transparent" Icon="{ui:SymbolIcon Stop24}" ToolTip="Stoppen"
+                                           Visibility="{Binding IsActive, Converter={StaticResource Visible}}"
+                                           Command="{Binding DataContext.StopCommand, ElementName=ServiceList}" CommandParameter="{Binding}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+            <Grid Grid.Column="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <DockPanel Margin="0,0,0,8">
+                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,6,0,0">
+                        <CheckBox Content="Alle Dienste" IsChecked="{Binding ShowAll}" Margin="0,0,4,0" />
+                        <CheckBox Content="Nur Fehler" IsChecked="{Binding OnlyErrors}" Margin="0,0,4,0" />
+                        <CheckBox Content="Mitlaufen" IsChecked="{Binding FollowOutput}" />
+                    </StackPanel>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="8,0,0,0">
+                        <ui:Button Appearance="Transparent" Icon="{ui:SymbolIcon ArrowExportUp24}" ToolTip="Als Datei speichern" Command="{Binding ExportLogCommand}" />
+                        <ui:Button Appearance="Transparent" Icon="{ui:SymbolIcon Copy24}" ToolTip="Kopieren" Command="{Binding CopyLogCommand}" />
+                        <ui:Button Appearance="Transparent" Icon="{ui:SymbolIcon Broom24}" ToolTip="Leeren" Command="{Binding ClearLogCommand}" />
+                    </StackPanel>
+                    <ui:TextBox Text="{Binding Search, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="Im Log suchen" Icon="{ui:SymbolIcon Search24}" />
+                </DockPanel>
+
+                <Border Grid.Row="1" CornerRadius="8" BorderThickness="1"
+                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
+                    <ListBox x:Name="LogList" ItemsSource="{Binding Lines}" Background="Transparent" BorderThickness="0"
+                             VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                             ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ListBoxItem">
+                                            <ContentPresenter Margin="10,1" />
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding Source}" Margin="0,0,10,0" FontFamily="Cascadia Mono, Consolas" FontSize="12" Foreground="#58A6FF"
+                                               Visibility="{Binding HasSource, Converter={StaticResource Visible}}" />
+                                    <TextBlock x:Name="Line" local:LogText.Entry="{Binding Entry}" FontFamily="Cascadia Mono, Consolas" FontSize="12"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                </StackPanel>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding Entry.Kind}" Value="Error">
+                                        <Setter TargetName="Line" Property="Foreground" Value="#E5534B" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Entry.Kind}" Value="System">
+                                        <Setter TargetName="Line" Property="Foreground" Value="#8B949E" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Border>
+            </Grid>
+        </Grid>
+    </Grid>
+</UserControl>
