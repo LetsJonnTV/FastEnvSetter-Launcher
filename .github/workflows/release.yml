@@ -25,11 +25,47 @@ jobs:
       - name: Tag gegen Version prüfen
         shell: pwsh
         run: scripts/check-version.ps1 -Tag "$env:GITHUB_REF_NAME"
-      - name: Tests
-        run: dotnet test --configuration Release
+      - name: NuGet-Abhängigkeiten wiederherstellen
+        run: dotnet restore FastEnvSetter.sln
+      - name: Formatierung prüfen
+        run: dotnet format FastEnvSetter.sln --verify-no-changes --no-restore
+      - name: Release-Build
+        run: dotnet build FastEnvSetter.sln --configuration Release --no-restore
+      - name: .NET-Tests
+        run: dotnet test tests/FastEnvSetter.Tests/FastEnvSetter.Tests.csproj --configuration Release --no-build
+      - name: MCP-Transport prüfen
+        run: node scripts/test-mcp.mjs
+      - name: VS-Code-Erweiterung prüfen
+        working-directory: extensions/vscode
+        run: |
+          npm ci --no-fund --no-audit
+          npm test
+          npm run lint
+          npm run typecheck
+          npm run build
       - name: Artefakte bauen
         shell: pwsh
-        run: scripts/publish.ps1 -Output artifacts
+        run: |
+          $output = Join-Path $env:RUNNER_TEMP "fastenvsetter-release-$env:GITHUB_RUN_ID"
+          New-Item -ItemType Directory -Path $output | Out-Null
+          scripts/publish.ps1 -Output $output
+          $version = $env:GITHUB_REF_NAME.TrimStart('v')
+          $expected = @(
+            "FastEnvSetter-$version-win-x64.exe",
+            "FastEnvSetter-$version-win-arm64.exe",
+            "FastEnvSetter.Mcp-$version-win-x64.exe",
+            "FastEnvSetter.Mcp-$version-win-arm64.exe",
+            "FastEnvSetter.Core.$version.nupkg",
+            "FastEnvSetter.Plugin.Sdk.$version.nupkg",
+            "fastenvsetter-$version.vsix",
+            'SHA256SUMS'
+          ) | Sort-Object
+          $actual = @(Get-ChildItem $output -File | Select-Object -ExpandProperty Name | Sort-Object)
+          if (Compare-Object $expected $actual) {
+            throw "Release-Artefakte stimmen nicht mit der erwarteten Dateiliste überein: $($actual -join ', ')"
+          }
+          scripts/verify-release-artifacts.ps1 -Directory $output -Tag $env:GITHUB_REF_NAME
+          "RELEASE_ARTIFACTS=$output" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
       - name: Release Notes extrahieren
         shell: pwsh
         run: scripts/extract-changelog.ps1 -Version "$env:GITHUB_REF_NAME" | Set-Content -Encoding utf8 release-notes.md
@@ -38,5 +74,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $assets = Get-ChildItem artifacts -File | ForEach-Object FullName
+          $assets = Get-ChildItem $env:RELEASE_ARTIFACTS -File | ForEach-Object FullName
           gh release create "$env:GITHUB_REF_NAME" @assets --title "$env:GITHUB_REF_NAME" --notes-file release-notes.md --verify-tag
