@@ -1,8 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
-import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline';
@@ -20,17 +19,15 @@ async function stop(child) {
 }
 
 async function waitForPipe(dataPath, child) {
-    const hash = createHash('sha256').update(dataPath.toUpperCase()).digest('hex').toUpperCase().slice(0, 16);
-    const endpoint = `\\\\.\\pipe\\FastEnvSetter-${hash}`;
-    const deadline = Date.now() + 20000;
+    const deadline = Date.now() + 35000;
     while (true) {
         assert.equal(child.exitCode, null, 'Temporary launcher exited before its pipe was ready.');
-        const ready = await new Promise(resolve => {
-            const socket = net.createConnection(endpoint);
-            socket.once('connect', () => { socket.destroy(); resolve(true); });
-            socket.once('error', () => { socket.destroy(); resolve(false); });
+        const probe = spawn(app, ['--data', dataPath, '--no-start', 'list', '--json'], { stdio: 'ignore' });
+        const exitCode = await new Promise((resolve, reject) => {
+            probe.once('error', reject);
+            probe.once('close', code => resolve(code));
         });
-        if (ready) return;
+        if (exitCode === 0) return;
         assert.ok(Date.now() < deadline, 'Temporary launcher pipe did not become ready.');
         await new Promise(resolve => setTimeout(resolve, 50));
     }
