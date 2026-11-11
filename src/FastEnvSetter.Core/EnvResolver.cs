@@ -93,12 +93,19 @@ public static class EnvResolver
     }
 
     public static ResolvedEnvironment Resolve(
-        Project project, ServiceDefinition? service, IReadOnlyList<EnvProfile> allProfiles, IReadOnlyDictionary<Guid, string>? vaultValues = null)
+        Project project, ServiceDefinition? service, IReadOnlyList<EnvProfile> allProfiles, IReadOnlyDictionary<Guid, string>? vaultValues = null) =>
+        Resolve(project, service, allProfiles, vaultValues, null);
+
+    public static ResolvedEnvironment Resolve(
+        Project project, ServiceDefinition? service, IReadOnlyList<EnvProfile> allProfiles, IReadOnlyDictionary<Guid, string>? vaultValues,
+        ResolvedEnvironment? fileSources)
     {
-        var errors = new List<string>();
+        var errors = fileSources?.Errors.ToList() ?? [];
         var winners = Winners(project, service, allProfiles, errors);
-        var variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        var secrets = new List<string>();
+        var variables = fileSources is null
+            ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, string>(fileSources.Variables, StringComparer.OrdinalIgnoreCase);
+        var secrets = fileSources?.SecretValues.ToList() ?? [];
 
         foreach (var (name, variable) in winners)
         {
@@ -124,4 +131,8 @@ public static class EnvResolver
 
         return new ResolvedEnvironment(variables, secrets, errors);
     }
+
+    public static ResolvedEnvironment LoadAndResolve(
+        Project project, ServiceDefinition? service, IReadOnlyList<EnvProfile> allProfiles, IReadOnlyDictionary<Guid, string>? vaultValues = null) =>
+        Resolve(project, service, allProfiles, vaultValues, EnvFileSources.Load(project));
 }

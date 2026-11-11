@@ -200,6 +200,11 @@ public partial class App : Application
         var services = new ServiceCollection();
         services.AddSingleton<ISecretProtector, DpapiSecretProtector>();
         services.AddSingleton<IAppDataStore>(store);
+        services.AddSingleton<IConfigurationStore>(store);
+        services.AddSingleton<IConfigurationService, ConfigurationService>();
+        services.AddSingleton<ProjectTaskRunner>(provider => new ProjectTaskRunner(secretProviders: provider.GetServices<ISecretProvider>()));
+        services.AddSingleton(new ConfigurationHistoryStore(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(store.FilePath))!, "development-history")));
+        services.AddSingleton<IDevelopmentService, DevelopmentService>();
         services.AddSingleton(plugins);
         services.AddSingleton<IThemeProvider>(plugins);
         services.AddSingleton(new HttpClient { Timeout = TimeSpan.FromMinutes(5) });

@@ -2,9 +2,11 @@ namespace FastEnvSetter.Core;
 
 public sealed class AppData
 {
-    public const int CurrentSchemaVersion = 2;
+    public const int CurrentSchemaVersion = 3;
 
     public int SchemaVersion { get; set; } = CurrentSchemaVersion;
+    public long Revision { get; set; }
+    public List<ConfigurationReceipt> ConfigurationReceipts { get; set; } = [];
     public List<EnvProfile> Profiles { get; set; } = [];
     public List<Project> Projects { get; set; } = [];
     public AppSettings Settings { get; set; } = new();
@@ -13,6 +15,10 @@ public sealed class AppData
 
 public sealed class AppSettings
 {
+    public bool AllowExternalConfigurationChanges { get; set; }
+    public bool AllowExternalTaskExecution { get; set; }
+    public bool AllowExternalGitChanges { get; set; }
+
     /// <summary>System, Light oder Dark.</summary>
     public string Theme { get; set; } = "System";
     public string VaultwardenUrl { get; set; } = "";
@@ -64,6 +70,12 @@ public sealed class Project
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public string Name { get; set; } = "";
+    public string SourceRoot { get; set; } = "";
+    public List<EditorTarget> EditorTargets { get; set; } = [];
+    public List<ProjectTask> Tasks { get; set; } = [];
+    public List<string> EnvironmentFiles { get; set; } = [];
+    public List<DeploymentTarget> DeploymentTargets { get; set; } = [];
+    public List<ProjectRelease> Releases { get; set; } = [];
 
     /// <summary>Nur noch zum Einlesen von Dateien im Format v1.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]

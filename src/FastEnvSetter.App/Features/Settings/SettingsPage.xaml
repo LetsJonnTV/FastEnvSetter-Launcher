@@ -6,6 +6,17 @@
         <StackPanel Margin="24,8,24,16">
             <TextBlock Text="Einstellungen" Style="{StaticResource PageTitle}" Margin="0,0,0,16" />
 
+            <StackPanel Margin="0,0,0,20">
+                <TextBlock Text="Externe Zugriffe (CLI / MCP)" Style="{StaticResource SectionTitle}" Margin="0,0,0,8" />
+                <CheckBox Content="Externe Konfigurationsänderungen erlauben" IsChecked="{Binding AllowExternalConfigurationChanges}" />
+                <TextBlock Text="Erlaubt externen Clients, Projekte, Profile und Startbefehle zu verändern." Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,2,0,10" />
+                <CheckBox Content="Externe Aufgabenausführung erlauben" IsChecked="{Binding AllowExternalTaskExecution}" />
+                <TextBlock Text="Projektbefehle laufen mit deinen Rechten und aufgelösten Umgebungswerten." Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,2,0,10" />
+                <CheckBox Content="Externe Git-Änderungen erlauben" IsChecked="{Binding AllowExternalGitChanges}" />
+                <TextBlock Text="Erlaubt schreibende Git-Aktionen. Nur für vertrauenswürdige Clients freigeben." Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,2,0,8" />
+                <TextBlock Text="{Binding PermissionError}" TextWrapping="Wrap" Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
+            </StackPanel>
+
             <ui:Card Padding="16" Margin="0,0,0,12">
                 <StackPanel>
                     <TextBlock Text="Darstellung" Style="{StaticResource Label}" />

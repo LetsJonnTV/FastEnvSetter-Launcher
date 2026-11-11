@@ -33,6 +33,8 @@ jobs:
         run: dotnet build --configuration Release
       - name: Tests
         run: dotnet test --configuration Release --no-build
+      - name: MCP-Transport und Ausfuehrungsfreigaben
+        run: node scripts/test-mcp.mjs
       - name: Extension prüfen
         working-directory: extensions/vscode
         run: |

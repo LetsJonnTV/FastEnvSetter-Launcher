@@ -135,7 +135,7 @@ public class EnvLayerTests
             using (var store = new JsonAppDataStore(new DpapiSecretProtector(), file))
             {
                 Assert.Equal([id], store.Data.Projects[0].EnvProfileIds);
-                Assert.Equal(2, store.Data.SchemaVersion);
+                Assert.Equal(AppData.CurrentSchemaVersion, store.Data.SchemaVersion);
                 store.SaveNow();
             }
 

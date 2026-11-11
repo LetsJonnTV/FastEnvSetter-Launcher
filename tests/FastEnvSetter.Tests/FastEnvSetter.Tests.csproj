@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\FastEnvSetter.Infrastructure\FastEnvSetter.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\FastEnvSetter.Ipc\FastEnvSetter.Ipc.csproj" />
     <ProjectReference Include="..\..\src\FastEnvSetter.Runners\FastEnvSetter.Runners.csproj" />
   </ItemGroup>
 

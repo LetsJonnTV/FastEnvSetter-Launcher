@@ -41,14 +41,49 @@
             <ui:Button DockPanel.Dock="Left" Appearance="Transparent" Icon="{ui:SymbolIcon ArrowLeft24}" ToolTip="Zurück"
                        Margin="0,0,8,0" Command="{Binding BackCommand}" />
             <ui:Button DockPanel.Dock="Right" Appearance="Primary" Content="Starten" Icon="{ui:SymbolIcon Play24}"
-                       Margin="8,0,0,0" Command="{Binding StartCommand}" />
-            <ui:TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="Projektname" FontSize="18" />
+                       Margin="8,0,0,0" Command="{Binding StartCommand}" IsEnabled="{Binding IsProjectAvailable}" />
+            <ui:TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="Projektname" FontSize="18" IsEnabled="{Binding IsProjectAvailable}" />
         </DockPanel>
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-            <StackPanel Margin="0,0,12,0">
+            <StackPanel Margin="0,0,12,0" IsEnabled="{Binding IsProjectAvailable}">
                 <ui:TextBox Margin="0,0,0,12" PlaceholderText="Tags, mit Komma getrennt" Icon="{ui:SymbolIcon Tag24}"
                             Text="{Binding TagsText, UpdateSourceTrigger=LostFocus}" />
+
+                <TextBlock Text="Quellcode und VS Code" Style="{StaticResource SectionTitle}" Margin="0,0,0,10" />
+                <DockPanel Margin="0,0,0,12" IsEnabled="{Binding Development.IsIdle}">
+                    <ui:Button DockPanel.Dock="Right" Margin="8,0,0,0" Icon="{ui:SymbolIcon Folder24}" ToolTip="Quellordner wählen" Command="{Binding BrowseSourceRootCommand}" />
+                    <ui:Button DockPanel.Dock="Right" Margin="8,0,0,0" Icon="{ui:SymbolIcon Open24}" ToolTip="Quellordner in VS Code öffnen" Command="{Binding OpenSourceCommand}" />
+                    <ui:TextBox PlaceholderText="Quellordner" Text="{Binding SourceRoot, UpdateSourceTrigger=LostFocus}" />
+                </DockPanel>
+                <ItemsControl x:Name="EditorList" ItemsSource="{Binding Editors}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <ui:Card Padding="12" Margin="0,0,0,8">
+                                <StackPanel>
+                                    <DockPanel>
+                                        <ui:Button DockPanel.Dock="Right" Icon="{ui:SymbolIcon Delete24}" ToolTip="Editorziel entfernen"
+                                                   Command="{Binding DataContext.RemoveEditorCommand, ElementName=EditorList}" CommandParameter="{Binding}" />
+                                        <ui:Button DockPanel.Dock="Right" Margin="8,0" Icon="{ui:SymbolIcon Open24}" ToolTip="In neuem VS-Code-Fenster öffnen" Command="{Binding OpenCommand}" />
+                                        <ui:TextBox PlaceholderText="Name des Editorziels" Text="{Binding Name, UpdateSourceTrigger=LostFocus}" />
+                                    </DockPanel>
+                                    <DockPanel Margin="0,8,0,0">
+                                        <ui:Button DockPanel.Dock="Right" Margin="8,0,0,0" Icon="{ui:SymbolIcon Folder24}" ToolTip="Ordner wählen" Command="{Binding BrowseFolderCommand}" />
+                                        <ui:Button DockPanel.Dock="Right" Margin="8,0,0,0" Icon="{ui:SymbolIcon Document24}" ToolTip=".code-workspace wählen" Command="{Binding BrowseWorkspaceCommand}" />
+                                        <ui:TextBox PlaceholderText="Ordner oder .code-workspace, relativ zum Quellordner" Text="{Binding Path, UpdateSourceTrigger=LostFocus}" />
+                                    </DockPanel>
+                                    <TextBlock Text="VS-Code-Profil (unbekannter Name legt ein neues Profil an)" Style="{StaticResource Label}" Margin="0,8,0,4" TextWrapping="Wrap" />
+                                    <ui:TextBox PlaceholderText="Leer: Standardprofil" Text="{Binding Profile, UpdateSourceTrigger=LostFocus}" />
+                                </StackPanel>
+                            </ui:Card>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <ui:Button Content="Editorziel hinzufügen" Icon="{ui:SymbolIcon Add24}" Command="{Binding AddEditorCommand}" HorizontalAlignment="Left" Margin="0,0,0,12" />
+                <TextBlock Text="{Binding EditorError}" TextWrapping="Wrap" Margin="0,0,0,12" Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
+                <Separator Margin="0,0,0,16" />
+
+                <local:ProjectDevelopmentPanel DataContext="{Binding Development}" Margin="0,0,0,20" />
 
                 <ui:Card Padding="16" Margin="0,0,0,16">
                     <StackPanel>

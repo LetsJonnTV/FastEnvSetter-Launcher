@@ -73,6 +73,11 @@
                                     <TextBlock Text="{Binding Summary}" Style="{StaticResource Muted}" VerticalAlignment="Center" />
                                 </StackPanel>
                                 <TextBlock Text="{Binding ProfileName}" Margin="0,4,0,14" Style="{StaticResource Muted}" />
+                                <DockPanel Margin="0,0,0,10" Visibility="{Binding HasSourceRoot, Converter={StaticResource Visible}}">
+                                    <ui:Button DockPanel.Dock="Right" Appearance="Transparent" Icon="{ui:SymbolIcon Open24}" ToolTip="VS Code öffnen / Editorziel wählen"
+                                               Command="{Binding DataContext.OpenEditorCommand, RelativeSource={RelativeSource AncestorType=ItemsControl, AncestorLevel=1}}" CommandParameter="{Binding}" />
+                                    <TextBlock Text="{Binding SourceRoot}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Style="{StaticResource Muted}" />
+                                </DockPanel>
 
                                 <DockPanel>
                                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">

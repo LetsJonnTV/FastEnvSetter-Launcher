@@ -3,6 +3,7 @@ using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using FastEnvSetter.Core;
+using FastEnvSetter.Infrastructure;
 using Microsoft.Win32;
 
 namespace FastEnvSetter.App;
@@ -404,14 +405,108 @@ public sealed partial class ServiceEditorViewModel : ObservableObject
     private void Save() => _store.RequestSave();
 }
 
+public sealed partial class EditorTargetViewModel(EditorTarget target, Action save, Action<EditorTarget> open, Func<string> root) : ObservableObject
+{
+    public EditorTarget Target => target;
+    public string Name { get => target.Name; set { target.Name = value; OnPropertyChanged(); save(); } }
+    public string Path { get => target.Path; set { target.Path = value; OnPropertyChanged(); save(); } }
+    public string Profile { get => target.Profile; set { target.Profile = value; OnPropertyChanged(); save(); } }
+
+    [RelayCommand]
+    private void Open() => open(target);
+
+    [RelayCommand]
+    private void BrowseFolder()
+    {
+        var dialog = new OpenFolderDialog { Title = "Editorordner wählen" };
+        if (Directory.Exists(root()))
+            dialog.InitialDirectory = root();
+        if (dialog.ShowDialog() == true && Directory.Exists(root()))
+            Path = System.IO.Path.GetRelativePath(root(), dialog.FolderName);
+    }
+
+    [RelayCommand]
+    private void BrowseWorkspace()
+    {
+        var dialog = new OpenFileDialog { Filter = "VS Code Workspace|*.code-workspace" };
+        if (Directory.Exists(root()))
+            dialog.InitialDirectory = root();
+        if (dialog.ShowDialog() == true && Directory.Exists(root()))
+            Path = System.IO.Path.GetRelativePath(root(), dialog.FileName);
+    }
+}
+
 public sealed partial class ProjectEditorViewModel(
     IAppDataStore store, RunnerRegistry runners, ProjectActions actions, INavigator navigator, SecretSources sources) : ObservableObject
 {
     private Project _project = new();
 
+    public ProjectDevelopmentViewModel Development { get; } = new(store, sources);
+    [ObservableProperty] private bool _isProjectAvailable;
     public ObservableCollection<IdCheck> Profiles { get; } = [];
     public ObservableCollection<IdCheck> Variables { get; } = [];
     public ObservableCollection<ServiceEditorViewModel> Services { get; } = [];
+    public ObservableCollection<EditorTargetViewModel> Editors { get; } = [];
+    [ObservableProperty] private string _editorError = "";
+
+    public string SourceRoot
+    {
+        get => _project.SourceRoot;
+        set
+        {
+            var root = value.Trim();
+            if (_project.SourceRoot == root) return;
+            _project.SourceRoot = root;
+            OnPropertyChanged();
+            store.RequestSave();
+            Development.Load(_project.Id);
+        }
+    }
+
+    [RelayCommand]
+    private void BrowseSourceRoot()
+    {
+        var dialog = new OpenFolderDialog { Title = "Quellordner zuordnen" };
+        if (Directory.Exists(SourceRoot))
+            dialog.InitialDirectory = SourceRoot;
+        if (dialog.ShowDialog() == true)
+            SourceRoot = dialog.FolderName;
+    }
+
+    [RelayCommand]
+    private void AddEditor()
+    {
+        var target = new EditorTarget { Name = "VS Code" };
+        _project.EditorTargets.Add(target);
+        Editors.Add(CreateEditorTarget(target));
+        store.RequestSave();
+    }
+
+    [RelayCommand]
+    private void RemoveEditor(EditorTargetViewModel editor)
+    {
+        _project.EditorTargets.Remove(editor.Target);
+        Editors.Remove(editor);
+        store.RequestSave();
+    }
+
+    [RelayCommand]
+    private void OpenSource() => OpenEditorTarget(new EditorTarget());
+
+    private EditorTargetViewModel CreateEditorTarget(EditorTarget target) => new(target, store.RequestSave, OpenEditorTarget, () => SourceRoot);
+
+    private void OpenEditorTarget(EditorTarget target)
+    {
+        try
+        {
+            new EditorLauncher().Open(_project, target);
+            EditorError = "";
+        }
+        catch (Exception error) when (error is IOException or ArgumentException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
+        {
+            EditorError = error.Message;
+        }
+    }
 
     public bool HasProfiles => Profiles.Count > 0;
 
@@ -435,12 +530,24 @@ public sealed partial class ProjectEditorViewModel(
 
     public void Load(Project project)
     {
+        var current = store.Data.Projects.FirstOrDefault(candidate => candidate.Id == project.Id);
+        IsProjectAvailable = current is not null;
+        if (current is null)
+        {
+            Development.Stop();
+            EditorError = "Das Projekt wurde entfernt. Bitte zur Projektliste zurückkehren.";
+            return;
+        }
+        project = current;
         _project = project;
+        Development.Load(project.Id);
         OnPropertyChanged(nameof(Name));
         OnPropertyChanged(nameof(TagsText));
-
-        if (project.Services.Count == 0)
-            project.Services.Add(NewService(project));
+        OnPropertyChanged(nameof(SourceRoot));
+        EditorError = "";
+        Editors.Clear();
+        foreach (var target in project.EditorTargets)
+            Editors.Add(CreateEditorTarget(target));
 
         Profiles.Clear();
         foreach (var profile in store.Data.Profiles)
@@ -457,6 +564,17 @@ public sealed partial class ProjectEditorViewModel(
 
         LoadVariables();
         UpdateGroupState();
+    }
+
+    public void RefreshCurrentProject()
+    {
+        var current = store.Data.Projects.FirstOrDefault(candidate => candidate.Id == _project.Id);
+        if (!ReferenceEquals(current, _project))
+        {
+            Load(current ?? _project);
+            if (current is not null)
+                EditorError = "Das Projekt wurde extern geändert und neu geladen. Nicht gespeicherte Aufgabenentwürfe wurden verworfen.";
+        }
     }
 
     private ServiceEditorViewModel CreateEditor(ServiceDefinition service) =>
@@ -565,7 +683,13 @@ public sealed partial class ProjectEditorViewModel(
     [RelayCommand]
     private async Task StartAsync()
     {
-        await actions.StartAsync(_project);
-        navigator.Navigate(typeof(RunningPage), _project);
+        var current = store.Data.Projects.FirstOrDefault(project => project.Id == _project.Id);
+        if (current is null)
+        {
+            EditorError = "Das Projekt wurde entfernt. Bitte zur Projektliste zurückkehren.";
+            return;
+        }
+        await actions.StartAsync(current);
+        navigator.Navigate(typeof(RunningPage), current);
     }
 }

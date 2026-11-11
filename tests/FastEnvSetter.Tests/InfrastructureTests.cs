@@ -53,6 +53,45 @@ public sealed class InfrastructureTests : IDisposable
     }
 
     [Fact]
+    public void Newer_schema_is_rejected_without_overwriting_data()
+    {
+        var contents = $$"""{"SchemaVersion":{{AppData.CurrentSchemaVersion + 1}},"Projects":[]}""";
+        File.WriteAllText(DataFile, contents);
+
+        Assert.Throws<InvalidDataException>(() => new JsonAppDataStore(new DpapiSecretProtector(), DataFile));
+
+        Assert.Equal(contents, File.ReadAllText(DataFile));
+    }
+
+    [Fact]
+    public void Development_project_metadata_survives_reload()
+    {
+        using (var store = new JsonAppDataStore(new DpapiSecretProtector(), DataFile))
+        {
+            store.Data.Projects.Add(new Project
+            {
+                Name = "workspace",
+                SourceRoot = _folder,
+                EditorTargets = [new() { Name = "Backend", Profile = "Backend" }],
+                Tasks = [new() { Name = "Tests", FileName = "dotnet", Arguments = ["test"] }],
+                EnvironmentFiles = [".env"],
+                DeploymentTargets = [new() { Name = "Local" }],
+                Releases = [new() { Version = "1.0.0", CommitSha = "abc" }],
+            });
+            store.SaveNow();
+        }
+
+        using var reloaded = new JsonAppDataStore(new DpapiSecretProtector(), DataFile);
+        var project = Assert.Single(reloaded.Data.Projects);
+        Assert.Equal(_folder, project.SourceRoot);
+        Assert.Equal("Backend", Assert.Single(project.EditorTargets).Profile);
+        Assert.Equal("test", Assert.Single(Assert.Single(project.Tasks).Arguments));
+        Assert.Equal(".env", Assert.Single(project.EnvironmentFiles));
+        Assert.Equal("Local", Assert.Single(project.DeploymentTargets).Name);
+        Assert.Equal("1.0.0", Assert.Single(project.Releases).Version);
+    }
+
+    [Fact]
     public void Resolver_honours_checkboxes_and_rejects_duplicates()
     {
         var off = new EnvVariable { Name = "OFF", Value = "1" };

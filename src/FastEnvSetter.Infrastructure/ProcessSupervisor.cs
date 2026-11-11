@@ -62,7 +62,10 @@ public sealed class ProcessSupervisor(RunnerRegistry runners, IEnumerable<IAppEv
         if (vaultErrors.Count > 0)
             return new StartResult(vaultErrors);
 
-        var environments = project.Services.ToDictionary(s => s.Id, s => EnvResolver.Resolve(project, s, profiles, vaultValues));
+        var fileSources = EnvFileSources.Load(project);
+        if (fileSources.Errors.Count > 0)
+            return new StartResult(fileSources.Errors);
+        var environments = project.Services.ToDictionary(s => s.Id, s => EnvResolver.Resolve(project, s, profiles, vaultValues, fileSources));
         var environmentErrors = environments.Values.SelectMany(e => e.Errors).Distinct().ToList();
         if (environmentErrors.Count > 0)
             return new StartResult(environmentErrors);
@@ -114,7 +117,7 @@ public sealed class ProcessSupervisor(RunnerRegistry runners, IEnumerable<IAppEv
         if (vaultErrors.Count > 0)
             return new StartResult(vaultErrors);
 
-        var environment = EnvResolver.Resolve(project, service, profiles, vaultValues);
+        var environment = EnvResolver.LoadAndResolve(project, service, profiles, vaultValues);
         if (environment.Errors.Count > 0)
             return new StartResult(environment.Errors);
         if (IsActive(GetState(service.Id)))
@@ -616,7 +619,8 @@ public sealed class ProcessSupervisor(RunnerRegistry runners, IEnumerable<IAppEv
 
         /// <summary>Längste zuerst, damit überlappende Secrets vollständig verdeckt werden.</summary>
         public IReadOnlyList<string> MaskedValues { get; } =
-            environment.SecretValues.Where(s => s.Length >= 3).OrderByDescending(s => s.Length).ToList();
+            environment.SecretValues.SelectMany(value => new[] { value }.Concat(value.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)))
+                .Where(value => value.Length > 0).Distinct().OrderByDescending(value => value.Length).ToList();
 
         public Lock Gate { get; } = new();
         public List<LogEntry> Log { get; } = [];

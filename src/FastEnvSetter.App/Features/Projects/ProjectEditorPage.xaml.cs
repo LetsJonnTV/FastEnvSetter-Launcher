@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Threading;
 using FastEnvSetter.Core;
 
 namespace FastEnvSetter.App;
@@ -7,12 +8,24 @@ namespace FastEnvSetter.App;
 public partial class ProjectEditorPage : UserControl, INavigationTarget
 {
     private readonly ProjectEditorViewModel _viewModel;
+    private readonly DispatcherTimer _refreshTimer = new() { Interval = TimeSpan.FromMilliseconds(500) };
 
     public ProjectEditorPage(ProjectEditorViewModel viewModel)
     {
         _viewModel = viewModel;
         DataContext = viewModel;
         InitializeComponent();
+        _refreshTimer.Tick += (_, _) => _viewModel.RefreshCurrentProject();
+        Loaded += (_, _) =>
+        {
+            _viewModel.RefreshCurrentProject();
+            _refreshTimer.Start();
+        };
+        Unloaded += (_, _) =>
+        {
+            _refreshTimer.Stop();
+            _viewModel.Development.Stop();
+        };
     }
 
     public void OnNavigatedTo(object? parameter)

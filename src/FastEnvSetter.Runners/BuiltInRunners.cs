@@ -14,6 +14,10 @@ public static class RunnerServiceCollectionExtensions
         services.AddSingleton<IRunner, NodeRunner>();
         services.AddSingleton<IRunner, DotNetRunner>();
         services.AddSingleton<IRunner, DockerComposeRunner>();
+        services.AddSingleton<IRunner, PodmanComposeRunner>();
+        services.AddSingleton<IRunner, RustRunner>();
+        services.AddSingleton<IRunner, JavaRunner>();
+        services.AddSingleton<IRunner, CppRunner>();
         return services;
     }
 }
@@ -296,49 +300,9 @@ public sealed class DotNetRunner : RunnerBase
     }
 }
 
-public sealed class DockerComposeRunner : RunnerBase
+public sealed class DockerComposeRunner : WorkflowComposeRunner
 {
+    protected override WorkflowContainerEngine Engine => WorkflowContainerEngine.Docker;
     public override string Id => "docker-compose";
     public override string DisplayName => "Docker Compose";
-    public override string Icon => "Box24";
-
-    protected override IEnumerable<SettingField> DefineFields() =>
-    [
-        new("file", "Compose-Datei", SettingKind.Choice) { AllowCustomValue = true, Hint = "Leer lassen, um die Standarddatei im Arbeitsordner zu verwenden." },
-        new("services", "Dienste") { Hint = "Mit Leerzeichen getrennt, leer bedeutet alle." },
-        new("build", "Vor dem Start bauen", SettingKind.Toggle) { Default = "false" },
-    ];
-
-    public override DetectionResult Detect(string folder)
-    {
-        string[] names = ["compose.yaml", "compose.yml", "docker-compose.yaml", "docker-compose.yml"];
-        var files = names.Where(n => File.Exists(Path.Combine(folder, n))).ToList();
-        return new DetectionResult
-        {
-            Values = files.Count > 0 ? new Dictionary<string, string> { ["file"] = files[0] } : new Dictionary<string, string>(),
-            Choices = new Dictionary<string, IReadOnlyList<string>> { ["file"] = files },
-        };
-    }
-
-    protected override ProcessCommand BuildDefault(ServiceDefinition service)
-    {
-        List<string> args = [.. Base(service), "up"];
-        if (IsOn(service, "build"))
-            args.Add("--build");
-        args.AddRange(CommandLineSplitter.Split(Value(service, "services")));
-        return new ProcessCommand("docker", args);
-    }
-
-    public override ProcessCommand? BuildStop(ServiceDefinition service)
-    {
-        if (HasCustomCommand(service))
-            return null;
-        return new ProcessCommand("docker", [.. Base(service), "stop", .. CommandLineSplitter.Split(Value(service, "services"))]);
-    }
-
-    private List<string> Base(ServiceDefinition service)
-    {
-        var file = Value(service, "file");
-        return file.Length > 0 ? ["compose", "-f", file] : ["compose"];
-    }
 }

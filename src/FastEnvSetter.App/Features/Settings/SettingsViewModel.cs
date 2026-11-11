@@ -191,11 +191,56 @@ public sealed partial class SettingsViewModel(IAppDataStore store, ThemeService 
         foreach (var option in BuiltIn.Concat(themes.Themes.Select(t => new ThemeOption(t.Id, t.Name))))
             Themes.Add(option);
         OnPropertyChanged(nameof(SelectedTheme));
+        OnPropertyChanged(nameof(AllowExternalConfigurationChanges));
+        OnPropertyChanged(nameof(AllowExternalTaskExecution));
+        OnPropertyChanged(nameof(AllowExternalGitChanges));
     }
 
     public IReadOnlyList<VaultStatus> Vaults { get; } = sources.Providers.Select(p => new VaultStatus(p, store)).ToList();
 
     public string DataPath => store.FilePath;
+
+    public bool AllowExternalConfigurationChanges
+    {
+        get => store.Data.Settings.AllowExternalConfigurationChanges;
+        set => SavePermission(() => store.Data.Settings.AllowExternalConfigurationChanges,
+            enabled => store.Data.Settings.AllowExternalConfigurationChanges = enabled, value);
+    }
+
+    public bool AllowExternalTaskExecution
+    {
+        get => store.Data.Settings.AllowExternalTaskExecution;
+        set => SavePermission(() => store.Data.Settings.AllowExternalTaskExecution,
+            enabled => store.Data.Settings.AllowExternalTaskExecution = enabled, value);
+    }
+
+    public bool AllowExternalGitChanges
+    {
+        get => store.Data.Settings.AllowExternalGitChanges;
+        set => SavePermission(() => store.Data.Settings.AllowExternalGitChanges,
+            enabled => store.Data.Settings.AllowExternalGitChanges = enabled, value);
+    }
+
+    [ObservableProperty] private string _permissionError = "";
+
+    private void SavePermission(Func<bool> read, Action<bool> write, bool value,
+        [System.Runtime.CompilerServices.CallerMemberName] string? propertyName = null)
+    {
+        var previous = read();
+        if (previous == value) return;
+        write(value);
+        try
+        {
+            store.SaveNow();
+            PermissionError = "";
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            write(previous);
+            PermissionError = "Freigabe konnte nicht gespeichert werden. Datenpfad und Schreibrechte prüfen.";
+        }
+        OnPropertyChanged(propertyName);
+    }
 
     public ThemeOption SelectedTheme
     {

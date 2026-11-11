@@ -1,6 +1,6 @@
 using System.Collections.ObjectModel;
 using System.IO;
-using System.Text.Json;
+using FastEnvSetter.Infrastructure;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -25,6 +25,8 @@ public sealed partial class ProjectCard(Project project) : ObservableObject
 
     public string? OpenUrl => Project.Services.Select(s => s.OpenUrl).FirstOrDefault(u => u.Length > 0);
     public bool HasOpenUrl => OpenUrl is not null;
+    public string SourceRoot => Project.SourceRoot;
+    public bool HasSourceRoot => !string.IsNullOrWhiteSpace(SourceRoot);
 }
 
 public sealed partial class ProjectsViewModel : ObservableObject
@@ -83,7 +85,9 @@ public sealed partial class ProjectsViewModel : ObservableObject
     private void Refill()
     {
         var projects = _store.Data.Projects
-            .Where(p => Query.Length == 0 || p.Name.Contains(Query, StringComparison.OrdinalIgnoreCase))
+            .Where(p => Query.Length == 0 || p.Name.Contains(Query, StringComparison.OrdinalIgnoreCase)
+                || p.SourceRoot.Contains(Query, StringComparison.OrdinalIgnoreCase)
+                || p.Tags.Any(tag => tag.Contains(Query, StringComparison.OrdinalIgnoreCase)))
             .Where(p => SelectedTag is null or AllTags || p.Tags.Contains(SelectedTag, StringComparer.OrdinalIgnoreCase))
             .OrderByDescending(p => p.IsFavorite);
 
@@ -156,45 +160,59 @@ public sealed partial class ProjectsViewModel : ObservableObject
     [RelayCommand]
     private async Task ExportAsync(ProjectCard card)
     {
-        var root = ProjectTransfer.CommonRoot(card.Project);
-        var json = ProjectTransfer.Export(card.Project, _store.Data.Profiles, root);
-        var summary = string.Join(Environment.NewLine, ProjectTransfer.Summarize(ProjectTransfer.Parse(json)!));
-        if (!await Dialogs.ConfirmAsync("Projekt exportieren", $"Die Datei enthält:{Environment.NewLine}{summary}", "Weiter"))
-            return;
+        try
+        {
+            var root = ProjectTransfer.CommonRoot(card.Project);
+            var json = ProjectTransfer.Export(card.Project, _store.Data.Profiles, root, includeSecretReferences: false);
+            var summary = string.Join(Environment.NewLine, ProjectTransfer.Summarize(ProjectTransfer.Parse(json)!));
+            if (!await Dialogs.ConfirmAsync("Projekt exportieren", $"Die Datei enthält:{Environment.NewLine}{summary}", "Weiter"))
+                return;
 
-        var dialog = new SaveFileDialog { FileName = card.Name + ".fesproject", Filter = "FastEnvSetter-Projekt|*.fesproject" };
-        if (dialog.ShowDialog() != true)
-            return;
+            var dialog = new SaveFileDialog { FileName = card.Name + ".fesproject", Filter = "FastEnvSetter-Projekt|*.fesproject" };
+            if (dialog.ShowDialog() != true)
+                return;
 
-        File.WriteAllText(dialog.FileName, json);
-        _notifier.Show("Exportiert", dialog.FileName, InfoBarSeverity.Success);
+            await File.WriteAllTextAsync(dialog.FileName, json);
+            _notifier.Show("Exportiert", dialog.FileName, InfoBarSeverity.Success);
+        }
+        catch (Exception error) when (error is IOException or ArgumentException or UnauthorizedAccessException)
+        {
+            _notifier.Show("Export nicht möglich", error.Message, InfoBarSeverity.Error);
+        }
     }
 
     [RelayCommand]
     private async Task ImportAsync()
     {
-        var file = new OpenFileDialog { Filter = "FastEnvSetter-Projekt|*.fesproject|Alle Dateien|*.*" };
-        if (file.ShowDialog() != true)
-            return;
-
-        var package = ProjectTransfer.Parse(File.ReadAllText(file.FileName));
-        if (package is null)
+        try
         {
-            _notifier.Show("Import nicht möglich", "Die Datei ist kein gültiges FastEnvSetter-Projekt.", InfoBarSeverity.Error);
-            return;
+            var file = new OpenFileDialog { Filter = "FastEnvSetter-Projekt|*.fesproject|Alle Dateien|*.*" };
+            if (file.ShowDialog() != true)
+                return;
+
+            var package = ProjectTransfer.Parse(await File.ReadAllTextAsync(file.FileName));
+            if (package is null)
+            {
+                _notifier.Show("Import nicht möglich", "Die Datei ist kein gültiges FastEnvSetter-Projekt.", InfoBarSeverity.Error);
+                return;
+            }
+
+            var summary = string.Join(Environment.NewLine, ProjectTransfer.Summarize(package));
+            if (!await Dialogs.ConfirmAsync("Projekt importieren", $"{summary}{Environment.NewLine}{Environment.NewLine}Importiere nur Dateien, denen du vertraust: Beim Start laufen die enthaltenen Befehle.", "Weiter"))
+                return;
+
+            var folder = new OpenFolderDialog { Title = "Wurzelordner des Projekts wählen" };
+            if (folder.ShowDialog() != true)
+                return;
+
+            var project = ProjectTransfer.Import(package, folder.FolderName, _store.Data);
+            _store.RequestSave();
+            _navigator.Navigate(typeof(ProjectEditorPage), project);
         }
-
-        var summary = string.Join(Environment.NewLine, ProjectTransfer.Summarize(package));
-        if (!await Dialogs.ConfirmAsync("Projekt importieren", $"{summary}{Environment.NewLine}{Environment.NewLine}Importiere nur Dateien, denen du vertraust: Beim Start laufen die enthaltenen Befehle.", "Weiter"))
-            return;
-
-        var folder = new OpenFolderDialog { Title = "Wurzelordner des Projekts wählen" };
-        if (folder.ShowDialog() != true)
-            return;
-
-        var project = ProjectTransfer.Import(package, folder.FolderName, _store.Data);
-        _store.RequestSave();
-        _navigator.Navigate(typeof(ProjectEditorPage), project);
+        catch (Exception error) when (error is IOException or ArgumentException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            _notifier.Show("Import nicht möglich", error.Message, InfoBarSeverity.Error);
+        }
     }
 
     [RelayCommand]
@@ -222,15 +240,29 @@ public sealed partial class ProjectsViewModel : ObservableObject
     [RelayCommand]
     private void Duplicate(ProjectCard card)
     {
-        var copy = JsonSerializer.Deserialize<Project>(JsonSerializer.Serialize(card.Project))!;
-        copy.Id = Guid.NewGuid();
-        copy.Name += " (Kopie)";
-        foreach (var service in copy.Services)
-            service.Id = Guid.NewGuid();
+        var copy = ProjectTransfer.Duplicate(card.Project);
 
         _store.Data.Projects.Add(copy);
         _store.RequestSave();
         Reload();
+    }
+
+    [RelayCommand]
+    private void OpenEditor(ProjectCard card)
+    {
+        if (card.Project.EditorTargets.Count > 1)
+        {
+            Edit(card);
+            return;
+        }
+        try
+        {
+            new EditorLauncher().Open(card.Project, card.Project.EditorTargets.FirstOrDefault() ?? new EditorTarget());
+        }
+        catch (Exception error) when (error is IOException or ArgumentException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
+        {
+            _notifier.Show("VS Code nicht geöffnet", error.Message, InfoBarSeverity.Error);
+        }
     }
 
     [RelayCommand]

@@ -5,22 +5,38 @@ using FastEnvSetter.Ipc;
 namespace FastEnvSetter.App;
 
 /// <summary>Beantwortet Befehle von Kommandozeile, MCP-Server und VS Code. Gibt nie Variablenwerte aus.</summary>
-public sealed class CliHandler(IAppDataStore store, ProjectActions actions, IProcessSupervisor supervisor)
+public sealed class CliHandler(IAppDataStore store, ProjectActions actions, IProcessSupervisor supervisor, IConfigurationService configuration, IDevelopmentService development)
 {
     private const string Usage = "Verwendung: FastEnvSetter [list|status|profiles|start|stop|restart|logs] [\"Projekt\"|\"Projekt/Dienst\"] [--json] [--tail N]";
     private const int DefaultTail = 200;
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
-    private static readonly string[] Commands = ["list", "status", "profiles", "start", "stop", "restart", "logs"];
+    private static readonly string[] Commands = ["list", "status", "profiles", "start", "stop", "restart", "logs", "api", "dev", "external-start", "external-stop", "external-restart"];
 
     public static bool IsCommand(string[] arguments) =>
         arguments.Length > 0 && Commands.Contains(arguments[0].ToLowerInvariant());
 
     /// <summary>Befehle, die laufende Dienste voraussetzen und daher einen Launcher im Hintergrund brauchen.</summary>
     public static bool NeedsRunningInstance(string[] arguments) =>
-        arguments.Length > 0 && arguments[0].ToLowerInvariant() is "start" or "restart";
+        arguments.Length > 0 && arguments[0].ToLowerInvariant() is "start" or "restart" or "dev" or "external-start" or "external-restart";
 
     public async Task<CliResponse> ExecuteAsync(string[] arguments)
     {
+        if (arguments.FirstOrDefault()?.ToLowerInvariant() is "external-start" or "external-stop" or "external-restart")
+        {
+            if (!store.Data.Settings.AllowExternalTaskExecution)
+                return new CliResponse(4, "permission_required: Externe Ausfuehrung muss lokal in den Einstellungen freigegeben werden.");
+            arguments = [arguments[0]["external-".Length..].ToLowerInvariant(), .. arguments.Skip(1)];
+        }
+
+        if (arguments.FirstOrDefault() == "dev")
+            return new CliResponse(0, await development.ExecuteJsonAsync(arguments.Length == 2 ? arguments[1] : null));
+
+        if (arguments.FirstOrDefault() == "api")
+        {
+            var output = configuration.ExecuteJson(arguments.Length == 2 ? arguments[1] : null);
+            return new CliResponse(0, output);
+        }
+
         var values = arguments.ToList();
         var json = values.Remove("--json");
         var tail = TakeTail(values);
@@ -79,6 +95,8 @@ public sealed class CliHandler(IAppDataStore store, ProjectActions actions, IPro
             {
                 id = p.Id,
                 name = p.Name,
+                sourceRoot = p.SourceRoot,
+                editorTargets = p.EditorTargets.Select(editor => new { id = editor.Id, name = editor.Name, path = editor.Path, profile = editor.Profile }),
                 favorite = p.IsFavorite,
                 tags = p.Tags,
                 profiles = store.Data.Profiles.Where(e => p.EnvProfileIds.Contains(e.Id)).Select(e => e.Name),
